@@ -1,4 +1,4 @@
-use crate::engine::eval::evaluate;
+use crate::engine::eval::best_move;
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::utils::decode_to_uci;
 use std::io::{self, BufRead};
@@ -22,7 +22,7 @@ pub fn handle_command(cmd: &str, game: &mut ChessGame) {
         "isready" => println!("readyok"),
         "ucinewgame" => *game = ChessGame::initialize((1, 1), None),
         "position" => handle_position(&parts, game),
-        "go" => handle_go(game),
+        "go" => handle_go(&parts, game),
         "quit" => std::process::exit(0),
         _ => {}
     }
@@ -62,8 +62,15 @@ fn handle_position(parts: &[&str], game: &mut ChessGame) {
     }
 }
 
-fn handle_go(game: &ChessGame) {
-    let movei = evaluate(game);
+fn handle_go(parts: &[&str], game: &mut ChessGame) {
+    let depth = parts
+        .iter()
+        .position(|&p| p == "depth")
+        .and_then(|i| parts.get(i + 1))
+        .and_then(|d| d.parse::<u8>().ok())
+        .unwrap_or(3);
+
+    let movei = best_move(game, depth);
     let uci_move = decode_to_uci(movei).unwrap();
     println!("bestmove {}", uci_move);
 }
