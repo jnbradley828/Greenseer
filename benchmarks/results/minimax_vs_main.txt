@@ -1,0 +1,140 @@
+depth = 1
+
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (1 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 20, Wins: 20, Losses: 0, Draws: 0, Points: 20.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 10], WL/DD Ratio: nan
+LLR: 0.40 (13.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (1 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 40, Wins: 40, Losses: 0, Draws: 0, Points: 40.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 20], WL/DD Ratio: nan
+LLR: 0.80 (27.1%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (1 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 60, Wins: 60, Losses: 0, Draws: 0, Points: 60.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 30], WL/DD Ratio: nan
+LLR: 1.20 (40.6%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (1 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 80, Wins: 80, Losses: 0, Draws: 0, Points: 80.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 40], WL/DD Ratio: nan
+LLR: 1.59 (54.2%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (1 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 100, Wins: 100, Losses: 0, Draws: 0, Points: 100.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 50], WL/DD Ratio: nan
+LLR: 1.99 (67.7%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Total Time: 00:00:01 (hours:minutes:seconds)
+
+depth = 2
+
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (2 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 20, Wins: 20, Losses: 0, Draws: 0, Points: 20.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 10], WL/DD Ratio: nan
+LLR: 0.40 (13.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (2 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 42, Wins: 42, Losses: 0, Draws: 0, Points: 42.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 21], WL/DD Ratio: nan
+LLR: 0.84 (28.4%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (2 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 60, Wins: 60, Losses: 0, Draws: 0, Points: 60.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 30], WL/DD Ratio: nan
+LLR: 1.20 (40.6%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (2 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 80, Wins: 80, Losses: 0, Draws: 0, Points: 80.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 40], WL/DD Ratio: nan
+LLR: 1.59 (54.2%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (2 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 98, Wins: 98, Losses: 0, Draws: 0, Points: 98.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 49], WL/DD Ratio: nan
+LLR: 1.95 (66.3%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (2 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 100, Wins: 100, Losses: 0, Draws: 0, Points: 100.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 50], WL/DD Ratio: nan
+LLR: 1.99 (67.7%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Total Time: 00:00:03 (hours:minutes:seconds)
+
+depth = 3
+
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (3 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 20, Wins: 20, Losses: 0, Draws: 0, Points: 20.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 10], WL/DD Ratio: nan
+LLR: 0.40 (13.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (3 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 38, Wins: 38, Losses: 0, Draws: 0, Points: 38.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 19], WL/DD Ratio: nan
+LLR: 0.76 (25.7%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (3 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 58, Wins: 58, Losses: 0, Draws: 0, Points: 58.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 29], WL/DD Ratio: nan
+LLR: 1.16 (39.3%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (3 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 82, Wins: 82, Losses: 0, Draws: 0, Points: 82.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 41], WL/DD Ratio: nan
+LLR: 1.63 (55.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+--------------------------------------------------
+Results of greenseer-minimax vs greenseer-main (3 plies, NULL, NULL):
+Elo: inf +/- nan, nElo: inf +/- nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 100, Wins: 100, Losses: 0, Draws: 0, Points: 100.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 50], WL/DD Ratio: nan
+LLR: 1.99 (67.7%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Total Time: 00:01:22 (hours:minutes:seconds)
+
