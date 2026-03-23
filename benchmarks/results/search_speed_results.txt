@@ -1,0 +1,5 @@
+depth 1: best move found in 205.533µs
+depth 2: best move found in 2.915733ms
+depth 3: best move found in 40.746375ms
+depth 4: best move found in 826.529458ms
+depth 5: best move found in 21.939475533s
