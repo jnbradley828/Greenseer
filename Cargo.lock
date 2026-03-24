@@ -12,6 +12,7 @@ dependencies = [
 [[package]]
 name = "oxi_chess_lib"
 version = "0.1.0"
+source = "git+https://github.com/jnbradley828/oxi_chess_lib#35cd89ae767573fb230e335e6114cbe3aa2d1e08"
 dependencies = [
  "rustc-hash",
  "thousands",
