@@ -5,16 +5,22 @@ use oxi_chess_lib::game::GameResult;
 pub fn best_move(game: &mut oxi_chess_lib::game::ChessGame, depth: u8) -> u16 {
     let mut best_move = game.legal_moves[0];
     _ = game.make_move(game.legal_moves[0]);
-    let mut best_eval = minimax(game, depth - 1, !game.board.side_to_move);
+    let mut alpha = minimax(
+        game,
+        depth - 1,
+        !game.board.side_to_move,
+        i16::MIN,
+        i16::MAX,
+    );
     _ = game.unmake_move();
 
     let remaining_moves: Vec<u16> = game.legal_moves[1..].to_vec();
     for movei in remaining_moves {
         _ = game.make_move(movei);
-        let movei_eval = minimax(game, depth - 1, !game.board.side_to_move);
+        let eval = minimax(game, depth - 1, !game.board.side_to_move, alpha, i16::MAX);
         _ = game.unmake_move();
-        if movei_eval > best_eval {
-            best_eval = movei_eval;
+        if eval > alpha {
+            alpha = eval;
             best_move = movei;
         }
     }
