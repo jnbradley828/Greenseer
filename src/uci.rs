@@ -2,7 +2,8 @@ use crate::engine::eval::iteratively_deepen;
 use crate::engine::search::SearchState;
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::utils::decode_to_uci;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use std::{
     io::{self, BufRead},
     sync::Arc,
@@ -76,15 +77,94 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
         .iter()
         .position(|&p| p == "depth")
         .and_then(|i| parts.get(i + 1))
-        .and_then(|d| d.parse::<u8>().ok())
-        .unwrap_or(3);
+        .and_then(|d| d.parse::<u8>().ok());
 
-    let mut game_clone = game.clone();
-    thread::spawn(move || {
-        let _ = iteratively_deepen(&mut game_clone, depth, Arc::clone(&state));
-        let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
-        println!("bestmove {}", uci_move);
-    });
+    let movetime = parts
+        .iter()
+        .position(|&p| p == "movetime")
+        .and_then(|i| parts.get(i + 1))
+        .and_then(|d| d.parse::<u32>().ok());
+
+    let wtime = parts
+        .iter()
+        .position(|&p| p == "wtime")
+        .and_then(|i| parts.get(i + 1))
+        .and_then(|d| d.parse::<u32>().ok());
+    let btime = parts
+        .iter()
+        .position(|&p| p == "btime")
+        .and_then(|i| parts.get(i + 1))
+        .and_then(|d| d.parse::<u32>().ok());
+    let winc = parts
+        .iter()
+        .position(|&p| p == "winc")
+        .and_then(|i| parts.get(i + 1))
+        .and_then(|d| d.parse::<u32>().ok());
+    let binc = parts
+        .iter()
+        .position(|&p| p == "binc")
+        .and_then(|i| parts.get(i + 1))
+        .and_then(|d| d.parse::<u32>().ok());
+
+    match (depth, movetime, wtime, btime, winc, binc) {
+        (_, Some(mt), _, _, _, _) => {
+            let cancel = Arc::new(AtomicBool::new(false));
+            let cancel_c = Arc::clone(&cancel);
+
+            let state_c = Arc::clone(&state);
+            thread::spawn(move || {
+                thread::sleep(Duration::from_millis(mt as u64));
+                if !cancel_c.load(Ordering::Relaxed) {
+                    state_c.stop.store(true, Ordering::Relaxed);
+                }
+            });
+
+            let mut game_clone = game.clone();
+            thread::spawn(move || {
+                let _ = iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state));
+                cancel.store(true, Ordering::Relaxed);
+                let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+                println!("bestmove {}", uci_move);
+            });
+        }
+        (Some(d), _, _, _, _, _) => {
+            let mut game_clone = game.clone();
+            thread::spawn(move || {
+                let _ = iteratively_deepen(&mut game_clone, depth.unwrap(), Arc::clone(&state));
+                let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+                println!("bestmove {}", uci_move);
+            });
+        }
+        (_, _, Some(wt), Some(bt), _, _) => {
+            let (time, inc) = if game.board.side_to_move {
+                (wt, winc.unwrap_or(0))
+            } else {
+                (bt, binc.unwrap_or(0))
+            };
+
+            let mt = (time / 20) + (inc / 2);
+
+            let cancel = Arc::new(AtomicBool::new(false));
+            let cancel_c = Arc::clone(&cancel);
+
+            let state_c = Arc::clone(&state);
+            thread::spawn(move || {
+                thread::sleep(Duration::from_millis(mt as u64));
+                if !cancel_c.load(Ordering::Relaxed) {
+                    state_c.stop.store(true, Ordering::Relaxed);
+                }
+            });
+
+            let mut game_clone = game.clone();
+            thread::spawn(move || {
+                let _ = iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state));
+                cancel.store(true, Ordering::Relaxed);
+                let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+                println!("bestmove {}", uci_move);
+            });
+        }
+        _ => {}
+    }
 }
 
 fn handle_stop(state: Arc<SearchState>) {
