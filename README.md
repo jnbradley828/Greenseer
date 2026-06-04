@@ -6,6 +6,14 @@ Built on top of [oxi_chess_lib](https://github.com/jnbradley828/oxi_chess_lib), 
 
 ---
 
+## Play Against Greenseer
+
+Greenseer is live on Lichess — you can challenge it directly:
+
+**[GreenseerEngine on Lichess](https://lichess.org/@/GreenseerEngine)**
+
+---
+
 ## How It Works
 
 ### Search: Minimax with Alpha-Beta Pruning
@@ -18,18 +26,11 @@ Rather than searching directly to a fixed depth, Greenseer uses **iterative deep
 The current position evaluator uses **material balance** (pawn=1, knight/bishop=3, rook=5, queen=9), with terminal states (checkmate, draw) handled explicitly.
 
 ### UCI Compatibility
-The engine speaks UCI, including support for the `stop` command — a shared atomic flag lets the search abort mid-tree and return the best move found so far.
-
----
-
-## Demo
-
-A playable demo is in the works — stay tuned.
+The engine speaks UCI, including support for `go depth`, `go movetime`, and full time control (`wtime`/`btime`/`winc`/`binc`). A shared atomic flag allows the search to abort mid-tree on a `stop` command and return the best move found so far.
 
 ---
 
 ## Planned Improvements
 
 - **Better evaluation function** — add positional parameters (piece-square tables, king safety, pawn structure) with weights tuned via linear regression on a game database
-- **Clock management** — time-aware search that allocates compute based on remaining clock
 - **Neural network experimentation** — explore learned evaluation functions as an alternative to hand-crafted heuristics
