@@ -4,15 +4,18 @@ use oxi_chess_lib::game::GameResult;
 use oxi_chess_lib::utils::decode_to_uci;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
+// returns (best move encoded as u16, score of said move, nodes searched)
 pub fn best_move(
     game: &mut oxi_chess_lib::game::ChessGame,
     depth: u8,
     state: Arc<SearchState>,
-) -> u16 {
+) -> (u16, u64) {
     let mut best_move = game.legal_moves[0];
     _ = game.make_move(game.legal_moves[0]);
-    let mut alpha = minimax(
+    let mut nodes: u64 = 0;
+    let (mut alpha, m_nodes) = minimax(
         game,
         depth - 1,
         !game.board.side_to_move,
@@ -20,15 +23,16 @@ pub fn best_move(
         i16::MAX,
         Arc::clone(&state),
     );
+    nodes += m_nodes;
     _ = game.unmake_move();
 
     let remaining_moves: Vec<u16> = game.legal_moves[1..].to_vec();
     for movei in remaining_moves {
         if state.stop.load(Ordering::Relaxed) {
-            return state.best_move.load(Ordering::Relaxed);
+            return (state.best_move.load(Ordering::Relaxed), nodes);
         }
         _ = game.make_move(movei);
-        let eval = minimax(
+        let (eval, m_nodes) = minimax(
             game,
             depth - 1,
             !game.board.side_to_move,
@@ -36,6 +40,7 @@ pub fn best_move(
             i16::MAX,
             Arc::clone(&state),
         );
+        nodes += m_nodes;
         _ = game.unmake_move();
         if eval > alpha {
             alpha = eval;
@@ -43,7 +48,7 @@ pub fn best_move(
         }
     }
 
-    return best_move;
+    return (best_move, nodes);
 }
 
 pub fn iteratively_deepen(
@@ -51,21 +56,28 @@ pub fn iteratively_deepen(
     max_depth: u8,
     state: Arc<SearchState>,
 ) -> u16 {
+    state
+        .best_move
+        .store(game.legal_moves[0], Ordering::Relaxed);
     for i in 1..=max_depth {
+        let start_time = Instant::now();
+
         if state.stop.load(Ordering::Relaxed) {
             return state.best_move.load(Ordering::Relaxed);
         } else {
-            // if there is a best move so far, reorder to improve alpha-beta pruning.
-            if state.best_move.load(Ordering::Relaxed) != 0 {
-                reorder_moves(game, vec![state.best_move.load(Ordering::Relaxed)]);
+            reorder_moves(game, vec![state.best_move.load(Ordering::Relaxed)]);
+            let (best_move, nodes) = best_move(game, i, Arc::clone(&state));
+            state.best_move.store(best_move, Ordering::Relaxed);
+            let best_uci = decode_to_uci(best_move).unwrap();
+            if !state.stop.load(Ordering::Relaxed) {
+                let elapsed = start_time.elapsed().as_millis().max(1);
+                let nps = ((nodes * 1000) as u128) / elapsed;
+                let score = 0; // TODO: GET THE SCORE!
+                // need to get score by including it in Arc struct!
+                println!(
+                    "info depth {i} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
+                );
             }
-            state
-                .best_move
-                .store(best_move(game, i, Arc::clone(&state)), Ordering::Relaxed);
-        }
-        let best = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
-        if !state.stop.load(Ordering::Relaxed) {
-            println!("info depth {i} pv {best}");
         }
     }
     return state.best_move.load(Ordering::Relaxed);
@@ -134,11 +146,9 @@ mod tests {
             (1, 1),
             Some("k7/7P/8/8/8/8/8/K7 w - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
-            &mut game,
-            1,
-            Arc::new(SearchState::new()),
-        ))
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
+            best_move(&mut game, 1, Arc::new(SearchState::new())).0,
+        )
         .unwrap();
         assert_eq!(best_move_uci, "h7h8q".to_string());
 
@@ -147,11 +157,9 @@ mod tests {
             (1, 1),
             Some("k7/8/KQ6/8/8/8/8/8 w - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
-            &mut game,
-            1,
-            Arc::new(SearchState::new()),
-        ))
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
+            best_move(&mut game, 1, Arc::new(SearchState::new())).0,
+        )
         .unwrap();
         assert!(best_move_uci == "b6b7".to_string() || best_move_uci == "b6a7".to_string());
 
@@ -160,11 +168,9 @@ mod tests {
             (1, 1),
             Some("k7/8/8/3q4/8/8/8/K2R4 w - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
-            &mut game,
-            1,
-            Arc::new(SearchState::new()),
-        ))
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
+            best_move(&mut game, 1, Arc::new(SearchState::new())).0,
+        )
         .unwrap();
         assert_eq!(best_move_uci, "d1d5".to_string());
 
@@ -173,11 +179,9 @@ mod tests {
             (1, 1),
             Some("k2r4/8/8/8/8/8/8/K2R4 b - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
-            &mut game,
-            1,
-            Arc::new(SearchState::new()),
-        ))
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
+            best_move(&mut game, 1, Arc::new(SearchState::new())).0,
+        )
         .unwrap();
         assert_eq!(best_move_uci, "d8d1".to_string());
     }

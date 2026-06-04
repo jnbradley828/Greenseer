@@ -21,7 +21,7 @@ impl SearchState {
 }
 
 // depth first search tree where you maximize your score and minimize opponent score at each node.
-// returns position eval
+// returns (position eval, nodes visited) **pruned nodes are not counted**
 // for ease of iterating, just leaving this function name as minimax even though it will be iterated.
 // max_side = true means evaluate for white, false means evaluate for black.
 pub fn minimax(
@@ -31,19 +31,22 @@ pub fn minimax(
     alpha: i16,
     beta: i16,
     state: Arc<SearchState>,
-) -> i16 {
+) -> (i16, u64) {
+    let mut nodes: u64 = 1;
     if depth == 0 || game.result != GameResult::InProgress {
-        return unsigned_evaluate(game, max_side);
+        return (unsigned_evaluate(game, max_side), nodes);
     } else {
         if max_side == game.board.side_to_move {
             let mut alpha = alpha;
             let mut max_eval = i16::MIN;
             for movei in game.legal_moves.clone() {
                 if state.stop.load(Ordering::Relaxed) {
-                    return 0;
+                    return (0, nodes);
                 }
                 _ = game.make_move(movei);
-                let eval = minimax(game, depth - 1, max_side, alpha, beta, Arc::clone(&state));
+                let (eval, child_nodes) =
+                    minimax(game, depth - 1, max_side, alpha, beta, Arc::clone(&state));
+                nodes += child_nodes;
                 _ = game.unmake_move();
                 if eval > max_eval {
                     max_eval = eval;
@@ -55,16 +58,18 @@ pub fn minimax(
                     break;
                 }
             }
-            return max_eval;
+            return (max_eval, nodes);
         } else {
             let mut beta = beta;
             let mut min_eval = i16::MAX;
             for movei in game.legal_moves.clone() {
                 if state.stop.load(Ordering::Relaxed) {
-                    return 0;
+                    return (0, nodes);
                 }
                 _ = game.make_move(movei);
-                let eval = minimax(game, depth - 1, max_side, alpha, beta, Arc::clone(&state));
+                let (eval, child_nodes) =
+                    minimax(game, depth - 1, max_side, alpha, beta, Arc::clone(&state));
+                nodes += child_nodes;
                 _ = game.unmake_move();
                 if eval < min_eval {
                     min_eval = eval;
@@ -76,7 +81,7 @@ pub fn minimax(
                     break;
                 }
             }
-            return min_eval;
+            return (min_eval, nodes);
         }
     }
 }
@@ -106,7 +111,8 @@ mod tests {
             i16::MIN,
             i16::MAX,
             Arc::new(SearchState::new()),
-        );
+        )
+        .0;
         assert_eq!(mm0, 1);
         let mm1 = minimax(
             &mut game,
@@ -115,7 +121,8 @@ mod tests {
             i16::MIN,
             i16::MAX,
             Arc::new(SearchState::new()),
-        );
+        )
+        .0;
         assert_eq!(mm1, 9);
 
         let mut game = ChessGame::initialize((1, 1), Some("3r4/8/8/8/8/k7/8/K7 b - - 0 1"));
@@ -126,7 +133,8 @@ mod tests {
             i16::MIN,
             i16::MAX,
             Arc::new(SearchState::new()),
-        );
+        )
+        .0;
         assert_eq!(mm0, 5);
         let mm1 = minimax(
             &mut game,
@@ -135,7 +143,8 @@ mod tests {
             i16::MIN,
             i16::MAX,
             Arc::new(SearchState::new()),
-        );
+        )
+        .0;
         assert_eq!(mm1, 10000);
     }
 }

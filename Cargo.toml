@@ -5,3 +5,10 @@ edition = "2024"
 
 [dependencies]
 oxi_chess_lib = { git = "https://github.com/jnbradley828/oxi_chess_lib" }
+
+[dev-dependencies]
+criterion = "0.8"
+
+[[bench]]
+name = "search"
+harness = false
