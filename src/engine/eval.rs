@@ -1,8 +1,15 @@
-use crate::engine::search::minimax;
+use crate::engine::search::{SearchState, minimax, reorder_moves};
 use oxi_chess_lib;
 use oxi_chess_lib::game::GameResult;
+use oxi_chess_lib::utils::decode_to_uci;
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
-pub fn best_move(game: &mut oxi_chess_lib::game::ChessGame, depth: u8) -> u16 {
+pub fn best_move(
+    game: &mut oxi_chess_lib::game::ChessGame,
+    depth: u8,
+    state: Arc<SearchState>,
+) -> u16 {
     let mut best_move = game.legal_moves[0];
     _ = game.make_move(game.legal_moves[0]);
     let mut alpha = minimax(
@@ -11,13 +18,24 @@ pub fn best_move(game: &mut oxi_chess_lib::game::ChessGame, depth: u8) -> u16 {
         !game.board.side_to_move,
         i16::MIN,
         i16::MAX,
+        Arc::clone(&state),
     );
     _ = game.unmake_move();
 
     let remaining_moves: Vec<u16> = game.legal_moves[1..].to_vec();
     for movei in remaining_moves {
+        if state.stop.load(Ordering::Relaxed) {
+            return state.best_move.load(Ordering::Relaxed);
+        }
         _ = game.make_move(movei);
-        let eval = minimax(game, depth - 1, !game.board.side_to_move, alpha, i16::MAX);
+        let eval = minimax(
+            game,
+            depth - 1,
+            !game.board.side_to_move,
+            alpha,
+            i16::MAX,
+            Arc::clone(&state),
+        );
         _ = game.unmake_move();
         if eval > alpha {
             alpha = eval;
@@ -26,6 +44,31 @@ pub fn best_move(game: &mut oxi_chess_lib::game::ChessGame, depth: u8) -> u16 {
     }
 
     return best_move;
+}
+
+pub fn iteratively_deepen(
+    game: &mut oxi_chess_lib::game::ChessGame,
+    max_depth: u8,
+    state: Arc<SearchState>,
+) -> u16 {
+    for i in 1..=max_depth {
+        if state.stop.load(Ordering::Relaxed) {
+            return state.best_move.load(Ordering::Relaxed);
+        } else {
+            // if there is a best move so far, reorder to improve alpha-beta pruning.
+            if state.best_move.load(Ordering::Relaxed) != 0 {
+                reorder_moves(game, vec![state.best_move.load(Ordering::Relaxed)]);
+            }
+            state
+                .best_move
+                .store(best_move(game, i, Arc::clone(&state)), Ordering::Relaxed);
+        }
+        let best = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+        if !state.stop.load(Ordering::Relaxed) {
+            println!("info depth {i} pv {best}");
+        }
+    }
+    return state.best_move.load(Ordering::Relaxed);
 }
 
 const PIECE_VALUES: [u8; 5] = [1, 3, 3, 5, 9]; // [p, n, b, r, q]
@@ -91,7 +134,12 @@ mod tests {
             (1, 1),
             Some("k7/7P/8/8/8/8/8/K7 w - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(&mut game, 1)).unwrap();
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
+            &mut game,
+            1,
+            Arc::new(SearchState::new()),
+        ))
+        .unwrap();
         assert_eq!(best_move_uci, "h7h8q".to_string());
 
         // White Qb7# or Qa7# (mate in 1): Ka6, Qb6 vs Ka8
@@ -99,7 +147,12 @@ mod tests {
             (1, 1),
             Some("k7/8/KQ6/8/8/8/8/8 w - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(&mut game, 1)).unwrap();
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
+            &mut game,
+            1,
+            Arc::new(SearchState::new()),
+        ))
+        .unwrap();
         assert!(best_move_uci == "b6b7".to_string() || best_move_uci == "b6a7".to_string());
 
         // White Rxd5: captures undefended black queen
@@ -107,7 +160,12 @@ mod tests {
             (1, 1),
             Some("k7/8/8/3q4/8/8/8/K2R4 w - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(&mut game, 1)).unwrap();
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
+            &mut game,
+            1,
+            Arc::new(SearchState::new()),
+        ))
+        .unwrap();
         assert_eq!(best_move_uci, "d1d5".to_string());
 
         // Black Rxd1: captures undefended white rook
@@ -115,7 +173,12 @@ mod tests {
             (1, 1),
             Some("k2r4/8/8/8/8/8/8/K2R4 b - - 0 1"),
         );
-        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(&mut game, 1)).unwrap();
+        let best_move_uci = oxi_chess_lib::utils::decode_to_uci(best_move(
+            &mut game,
+            1,
+            Arc::new(SearchState::new()),
+        ))
+        .unwrap();
         assert_eq!(best_move_uci, "d8d1".to_string());
     }
 }

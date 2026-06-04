@@ -1,18 +1,25 @@
-use crate::engine::eval::best_move;
+use crate::engine::eval::iteratively_deepen;
+use crate::engine::search::SearchState;
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::utils::decode_to_uci;
-use std::io::{self, BufRead};
+use std::sync::atomic::Ordering;
+use std::{
+    io::{self, BufRead},
+    sync::Arc,
+    thread,
+};
 
 pub fn run() {
     let mut game = ChessGame::initialize((1, 1), None);
+    let state = Arc::new(SearchState::new());
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
-        handle_command(&line, &mut game);
+        handle_command(&line, &mut game, Arc::clone(&state));
     }
 }
 
-pub fn handle_command(cmd: &str, game: &mut ChessGame) {
+pub fn handle_command(cmd: &str, game: &mut ChessGame, state: Arc<SearchState>) {
     let parts: Vec<&str> = cmd.trim().split_whitespace().collect();
     if parts.is_empty() {
         return;
@@ -22,8 +29,9 @@ pub fn handle_command(cmd: &str, game: &mut ChessGame) {
         "isready" => println!("readyok"),
         "ucinewgame" => *game = ChessGame::initialize((1, 1), None),
         "position" => handle_position(&parts, game),
-        "go" => handle_go(&parts, game),
+        "go" => handle_go(&parts, game, Arc::clone(&state)),
         "quit" => std::process::exit(0),
+        "stop" => handle_stop(Arc::clone(&state)),
         _ => {}
     }
 }
@@ -62,7 +70,8 @@ fn handle_position(parts: &[&str], game: &mut ChessGame) {
     }
 }
 
-fn handle_go(parts: &[&str], game: &mut ChessGame) {
+fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
+    state.stop.store(false, Ordering::Relaxed);
     let depth = parts
         .iter()
         .position(|&p| p == "depth")
@@ -70,7 +79,14 @@ fn handle_go(parts: &[&str], game: &mut ChessGame) {
         .and_then(|d| d.parse::<u8>().ok())
         .unwrap_or(3);
 
-    let movei = best_move(game, depth);
-    let uci_move = decode_to_uci(movei).unwrap();
-    println!("bestmove {}", uci_move);
+    let mut game_clone = game.clone();
+    thread::spawn(move || {
+        let _ = iteratively_deepen(&mut game_clone, depth, Arc::clone(&state));
+        let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+        println!("bestmove {}", uci_move);
+    });
+}
+
+fn handle_stop(state: Arc<SearchState>) {
+    state.stop.store(true, Ordering::Relaxed);
 }
