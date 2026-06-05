@@ -11,7 +11,7 @@ pub fn best_move(
     game: &mut oxi_chess_lib::game::ChessGame,
     depth: u8,
     state: Arc<SearchState>,
-) -> (u16, u64) {
+) -> (u16, i16, u64) {
     let mut best_move = game.legal_moves[0];
     _ = game.make_move(game.legal_moves[0]);
     let mut nodes: u64 = 0;
@@ -29,7 +29,7 @@ pub fn best_move(
     let remaining_moves: Vec<u16> = game.legal_moves[1..].to_vec();
     for movei in remaining_moves {
         if state.stop.load(Ordering::Relaxed) {
-            return (state.best_move.load(Ordering::Relaxed), nodes);
+            return (state.best_move.load(Ordering::Relaxed), alpha, nodes);
         }
         _ = game.make_move(movei);
         let (eval, m_nodes) = minimax(
@@ -48,7 +48,7 @@ pub fn best_move(
         }
     }
 
-    return (best_move, nodes);
+    return (best_move, alpha, nodes);
 }
 
 pub fn iteratively_deepen(
@@ -56,24 +56,25 @@ pub fn iteratively_deepen(
     max_depth: u8,
     state: Arc<SearchState>,
 ) -> u16 {
+    let start_time = Instant::now();
+    let mut nodes = 0;
+    // stores first move in the list just in case "stop" is called immediately.
     state
         .best_move
         .store(game.legal_moves[0], Ordering::Relaxed);
-    for i in 1..=max_depth {
-        let start_time = Instant::now();
 
+    for i in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
             return state.best_move.load(Ordering::Relaxed);
         } else {
             reorder_moves(game, vec![state.best_move.load(Ordering::Relaxed)]);
-            let (best_move, nodes) = best_move(game, i, Arc::clone(&state));
+            let (best_move, score, dnodes) = best_move(game, i, Arc::clone(&state));
             state.best_move.store(best_move, Ordering::Relaxed);
+            nodes += dnodes;
             let best_uci = decode_to_uci(best_move).unwrap();
             if !state.stop.load(Ordering::Relaxed) {
                 let elapsed = start_time.elapsed().as_millis().max(1);
                 let nps = ((nodes * 1000) as u128) / elapsed;
-                let score = 0; // TODO: GET THE SCORE!
-                // need to get score by including it in Arc struct!
                 println!(
                     "info depth {i} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
                 );
