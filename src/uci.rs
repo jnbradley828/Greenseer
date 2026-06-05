@@ -1,7 +1,9 @@
 use crate::engine::eval::iteratively_deepen;
 use crate::engine::search::SearchState;
+use oxi_chess_lib::board::ChessBoard;
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::utils::decode_to_uci;
+use std::cmp::min;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use std::{
@@ -142,7 +144,12 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
                 (bt, binc.unwrap_or(0))
             };
 
-            let mt = (time / 20) + (inc / 2);
+            let mut mt = (time / 20) + (inc / 2);
+
+            // cap thinking at 3 seconds if this is move 1.
+            if game.moves.len() < 2 {
+                mt = min(mt, 3000);
+            }
 
             let cancel = Arc::new(AtomicBool::new(false));
             let cancel_c = Arc::clone(&cancel);
