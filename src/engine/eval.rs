@@ -84,7 +84,7 @@ pub fn iteratively_deepen(
     return state.best_move.load(Ordering::Relaxed);
 }
 
-const PIECE_VALUES: [u8; 5] = [1, 3, 3, 5, 9]; // [p, n, b, r, q]
+const PIECE_VALUES: [i16; 5] = [100, 300, 300, 500, 900]; // [p, n, b, r, q]
 fn count_material(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     let mut material: i16 = 0;
 
@@ -113,6 +113,78 @@ fn count_material(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     return material;
 }
 
+#[rustfmt::skip]
+const PAWN_MOD: [i8; 64] = [
+    0,   0,   0,   0,   0,   0,   0,   0,   // rank 1
+    5,  10,  10, -20, -20,  10,  10,   5,   // rank 2
+    5,  -5, -10,   0,   0, -10,  -5,   5,   // rank 3
+    0,   0,  20,  20,  20,  20,   0,   0,   // rank 4
+    5,   5,  15,  25,  25,  15,   5,   5,   // rank 5
+   10,  10,  20,  30,  30,  20,  10,  10,   // rank 6
+   50,  50,  50,  50,  50,  50,  50,  50,   // rank 7
+    0,   0,   0,   0,   0,   0,   0,   0    // rank 8
+];
+
+#[rustfmt::skip]
+const KNIGHT_MOD: [i8; 64] = [
+  -50, -40, -30, -30, -30, -30, -40, -50,   // rank 1
+  -40, -20,   0,   5,   5,   0, -20, -40,   // rank 2
+  -30,   5,  10,  15,  15,  10,   5, -30,   // rank 3
+  -30,   0,  15,  20,  20,  15,   0, -30,   // rank 4
+  -30,   5,  15,  20,  20,  15,   5, -30,   // rank 5
+  -30,   0,  10,  15,  15,  10,   0, -30,   // rank 6
+  -40, -20,   0,   0,   0,   0, -20, -40,   // rank 7
+  -50, -40, -30, -30, -30, -30, -40, -50    // rank 8
+];
+
+#[rustfmt::skip]
+const BISHOP_MOD: [i8; 64] = [
+  -20, -10, -10, -10, -10, -10, -10, -20,   // rank 1
+  -10,   5,   0,   0,   0,   0,   5, -10,   // rank 2
+  -10,   0,   5,  10,  10,   5,   0, -10,   // rank 3
+  -10,   0,  10,  15,  15,  10,   0, -10,   // rank 4
+  -10,   0,  10,  15,  15,  10,   0, -10,   // rank 5
+  -10,   0,   5,  10,  10,   5,   0, -10,   // rank 6
+  -10,   5,   0,   0,   0,   0,   5, -10,   // rank 7
+  -20, -10, -10, -10, -10, -10, -10, -20    // rank 8
+];
+
+#[rustfmt::skip]
+const ROOK_MOD: [i8; 64] = [
+    0,   0,   0,   5,   5,   0,   0,   0,   // rank 1
+   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 2
+   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 3
+   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 4
+   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 5
+   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 6
+    5,  10,  10,  10,  10,  10,  10,   5,   // rank 7
+    0,   0,   0,   0,   0,   0,   0,   0    // rank 8
+];
+
+#[rustfmt::skip]
+const QUEEN_MOD: [i8; 64] = [
+  -20, -10, -10,  -5,  -5, -10, -10, -20,   // rank 1
+  -10,   0,   0,   0,   0,   0,   0, -10,   // rank 2
+  -10,   0,   5,   5,   5,   5,   0, -10,   // rank 3
+   -5,   0,   5,   5,   5,   5,   0,  -5,   // rank 4
+   -5,   0,   5,   5,   5,   5,   0,  -5,   // rank 5
+  -10,   0,   5,   5,   5,   5,   0, -10,   // rank 6
+  -10,   0,   0,   0,   0,   0,   0, -10,   // rank 7
+  -20, -10, -10,  -5,  -5, -10, -10, -20    // rank 8
+];
+
+#[rustfmt::skip]
+const KING_MOD: [i8; 64] = [
+   20,  30,  10,   0,   0,  10,  30,  20,   // rank 1
+   20,  20,   0,   0,   0,   0,  20,  20,   // rank 2
+  -10, -20, -20, -20, -20, -20, -20, -10,   // rank 3
+  -20, -30, -30, -40, -40, -30, -30, -20,   // rank 4
+  -30, -40, -40, -50, -50, -40, -40, -30,   // rank 5
+  -30, -40, -40, -50, -50, -40, -40, -30,   // rank 6
+  -30, -40, -40, -50, -50, -40, -40, -30,   // rank 7
+  -30, -40, -40, -50, -50, -40, -40, -30    // rank 8
+];
+
 pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     // evaluates WITHOUT future calculation. use minimax to calculate at depth.
     if matches!(game.result, GameResult::Draw(_)) {
@@ -124,8 +196,69 @@ pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     } else {
         let mut eval: i16 = 0;
         eval += count_material(game);
+        eval += positional_mods(game);
         return eval;
     }
+}
+
+pub fn positional_mods(game: &oxi_chess_lib::game::ChessGame) -> i16 {
+    let mut modifier: i16 = 0;
+
+    let w_bbs: [u64; 6] = [
+        game.board.pawns & game.board.white_pieces,
+        game.board.knights & game.board.white_pieces,
+        game.board.bishops & game.board.white_pieces,
+        game.board.rooks & game.board.white_pieces,
+        game.board.queens & game.board.white_pieces,
+        game.board.kings & game.board.white_pieces,
+    ];
+
+    let b_bbs: [u64; 6] = [
+        game.board.pawns & game.board.black_pieces,
+        game.board.knights & game.board.black_pieces,
+        game.board.bishops & game.board.black_pieces,
+        game.board.rooks & game.board.black_pieces,
+        game.board.queens & game.board.black_pieces,
+        game.board.kings & game.board.black_pieces,
+    ];
+
+    for i in 0..6 {
+        modifier += bb_to_posmod(w_bbs[i], i as u8, true);
+        modifier -= bb_to_posmod(b_bbs[i], i as u8, false);
+    }
+
+    return modifier;
+}
+
+// piece type 0-5 = pawn, knight, bishop, rook, queen, king
+pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool) -> i16 {
+    let mod_mask: &[i8; 64];
+    let mut modifier: i16 = 0;
+    match piece_type {
+        0 => mod_mask = &PAWN_MOD,
+        1 => mod_mask = &KNIGHT_MOD,
+        2 => mod_mask = &BISHOP_MOD,
+        3 => mod_mask = &ROOK_MOD,
+        4 => mod_mask = &QUEEN_MOD,
+        5 => mod_mask = &KING_MOD,
+        _ => panic!("unexpected piece type value: {}", piece_type),
+    }
+    let mut mbb: u64 = bb;
+    if to_move {
+        while mbb != 0 {
+            let i = mbb.trailing_zeros() as usize;
+            mbb &= mbb - 1;
+            modifier += mod_mask[i] as i16;
+        }
+    } else {
+        while mbb != 0 {
+            let i = mbb.trailing_zeros() as usize;
+            mbb &= mbb - 1;
+            modifier += mod_mask[63 - i] as i16;
+        }
+    }
+
+    return modifier;
 }
 
 pub fn unsigned_evaluate(game: &oxi_chess_lib::game::ChessGame, max_side: bool) -> i16 {

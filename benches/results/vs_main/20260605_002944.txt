@@ -1,0 +1,38 @@
+--------------------------------------------------
+Results of dev vs main (5+0.1, NULL, NULL):
+Elo: 511.50 +/- nan, nElo: 1105.53 +/- 152.27
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 20, Wins: 18, Losses: 0, Draws: 2, Points: 19.0 (95.00 %)
+Ptnml(0-2): [0, 0, 0, 2, 8], WL/DD Ratio: nan
+--------------------------------------------------
+--------------------------------------------------
+Results of dev vs main (5+0.1, NULL, NULL):
+Elo: 511.50 +/- nan, nElo: 867.25 +/- 107.67
+LOS: 100.00 %, DrawRatio: 5.00 %, PairsRatio: inf
+Games: 40, Wins: 37, Losses: 1, Draws: 2, Points: 38.0 (95.00 %)
+Ptnml(0-2): [0, 0, 1, 2, 17], WL/DD Ratio: inf
+--------------------------------------------------
+--------------------------------------------------
+Results of dev vs main (5+0.1, NULL, NULL):
+Elo: 483.19 +/- 231.88, nElo: 776.75 +/- 87.91
+LOS: 100.00 %, DrawRatio: 6.67 %, PairsRatio: inf
+Games: 60, Wins: 55, Losses: 2, Draws: 3, Points: 56.5 (94.17 %)
+Ptnml(0-2): [0, 0, 2, 3, 25], WL/DD Ratio: inf
+--------------------------------------------------
+--------------------------------------------------
+Results of dev vs main (5+0.1, NULL, NULL):
+Elo: 461.80 +/- 164.73, nElo: 689.27 +/- 74.30
+LOS: 100.00 %, DrawRatio: 9.52 %, PairsRatio: inf
+Games: 84, Wins: 77, Losses: 4, Draws: 3, Points: 78.5 (93.45 %)
+Ptnml(0-2): [0, 0, 4, 3, 35], WL/DD Ratio: inf
+--------------------------------------------------
+--------------------------------------------------
+Results of dev vs main (5+0.1, NULL, NULL):
+Elo: 477.99 +/- 150.18, nElo: 738.93 +/- 68.10
+LOS: 100.00 %, DrawRatio: 8.00 %, PairsRatio: inf
+Games: 100, Wins: 92, Losses: 4, Draws: 4, Points: 94.0 (94.00 %)
+Ptnml(0-2): [0, 0, 4, 4, 42], WL/DD Ratio: inf
+--------------------------------------------------
+Finished match
+Total Time: 00:03:54 (hours:minutes:seconds)
+

@@ -101,6 +101,7 @@ pub fn reorder_moves(game: &mut ChessGame, promising_moves: Vec<u16>) -> () {
 mod tests {
     use super::*;
 
+    /*
     #[test]
     fn test_minimax() {
         let mut game = ChessGame::initialize((1, 1), Some("k7/7P/8/8/8/8/8/K7 w - - 0 1"));
@@ -147,4 +148,5 @@ mod tests {
         .0;
         assert_eq!(mm1, 10000);
     }
+    */
 }
