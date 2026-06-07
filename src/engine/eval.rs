@@ -99,6 +99,7 @@ pub fn iteratively_deepen(
     return state.best_move.load(Ordering::Relaxed);
 }
 
+// returns objective material count
 const PIECE_VALUES: [i16; 5] = [100, 300, 300, 500, 900]; // [p, n, b, r, q]
 fn count_material(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     let mut material: i16 = 0;
@@ -200,6 +201,7 @@ const KING_MOD: [i8; 64] = [
   -30, -40, -40, -50, -50, -40, -40, -30    // rank 8
 ];
 
+// returns objective static evaluation.
 pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     // evaluates WITHOUT future calculation. use minimax to calculate at depth.
     if matches!(game.result, GameResult::Draw(_)) {
@@ -239,13 +241,14 @@ pub fn positional_mods(game: &oxi_chess_lib::game::ChessGame) -> i16 {
 
     for i in 0..6 {
         modifier += bb_to_posmod(w_bbs[i], i as u8, true);
-        modifier -= bb_to_posmod(b_bbs[i], i as u8, false);
+        modifier += bb_to_posmod(b_bbs[i], i as u8, false);
     }
 
     return modifier;
 }
 
 // piece type 0-5 = pawn, knight, bishop, rook, queen, king
+// returns objective positional score modifications
 pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool) -> i16 {
     let mod_mask: &[i8; 64];
     let mut modifier: i16 = 0;
@@ -269,13 +272,14 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool) -> i16 {
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
-            modifier += mod_mask[63 - i] as i16;
+            modifier -= mod_mask[63 - i] as i16;
         }
     }
 
     return modifier;
 }
 
+// returns score for argument max_side (true = white)
 pub fn unsigned_evaluate(game: &oxi_chess_lib::game::ChessGame, max_side: bool) -> i16 {
     if max_side {
         return evaluate(game);

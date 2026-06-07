@@ -129,7 +129,7 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
                 println!("bestmove {}", uci_move);
             });
         }
-        (Some(d), _, _, _, _, _) => {
+        (Some(d), _, None, None, None, None) => {
             let mut game_clone = game.clone();
             thread::spawn(move || {
                 let _ = iteratively_deepen(&mut game_clone, depth.unwrap(), Arc::clone(&state));
