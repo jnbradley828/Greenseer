@@ -87,11 +87,14 @@ pub fn minimax(
 }
 
 pub fn reorder_moves(game: &mut ChessGame, promising_moves: Vec<u16>) -> () {
-    // if move in promising_moves", swap it to the front.
+    // put promising moves in the front!
     let mut front = 0;
-    for i in 0..game.legal_moves.len() {
-        if promising_moves.contains(&game.legal_moves[i]) {
-            game.legal_moves.swap(front, i);
+    for i in 0..promising_moves.len() {
+        if let Some(j) = game.legal_moves[front..]
+            .iter()
+            .position(|m| m == &promising_moves[i])
+        {
+            game.legal_moves.swap(front, j + front);
             front += 1;
         }
     }

@@ -2,17 +2,20 @@ use crate::engine::search::{SearchState, minimax, reorder_moves};
 use oxi_chess_lib;
 use oxi_chess_lib::game::GameResult;
 use oxi_chess_lib::utils::decode_to_uci;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-// returns (best move encoded as u16, score of said move, nodes searched)
+// returns (best move encoded as u16, score of said move, nodes searched, runner_ups)
 pub fn best_move(
     game: &mut oxi_chess_lib::game::ChessGame,
     depth: u8,
     state: Arc<SearchState>,
-) -> (u16, i16, u64) {
+) -> (u16, i16, u64, VecDeque<u16>) {
     let mut best_move = game.legal_moves[0];
+    const RUNNER_UPS_MAX: usize = 3;
+    let mut runner_ups = VecDeque::with_capacity(RUNNER_UPS_MAX);
     _ = game.make_move(game.legal_moves[0]);
     let mut nodes: u64 = 0;
     let (mut alpha, m_nodes) = minimax(
@@ -29,7 +32,12 @@ pub fn best_move(
     let remaining_moves: Vec<u16> = game.legal_moves[1..].to_vec();
     for movei in remaining_moves {
         if state.stop.load(Ordering::Relaxed) {
-            return (state.best_move.load(Ordering::Relaxed), alpha, nodes);
+            return (
+                state.best_move.load(Ordering::Relaxed),
+                alpha,
+                nodes,
+                runner_ups,
+            );
         }
         _ = game.make_move(movei);
         let (eval, m_nodes) = minimax(
@@ -43,12 +51,16 @@ pub fn best_move(
         nodes += m_nodes;
         _ = game.unmake_move();
         if eval > alpha {
+            if runner_ups.len() == RUNNER_UPS_MAX {
+                runner_ups.pop_front();
+            }
+            runner_ups.push_back(best_move);
             alpha = eval;
             best_move = movei;
         }
     }
 
-    return (best_move, alpha, nodes);
+    return (best_move, alpha, nodes, runner_ups);
 }
 
 pub fn iteratively_deepen(
@@ -63,20 +75,23 @@ pub fn iteratively_deepen(
         .best_move
         .store(game.legal_moves[0], Ordering::Relaxed);
 
-    for i in 1..=max_depth {
+    let mut moves_of_interest: Vec<u16> = vec![state.best_move.load(Ordering::Relaxed)];
+    for d in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
             return state.best_move.load(Ordering::Relaxed);
         } else {
-            reorder_moves(game, vec![state.best_move.load(Ordering::Relaxed)]);
-            let (best_move, score, dnodes) = best_move(game, i, Arc::clone(&state));
+            reorder_moves(game, moves_of_interest);
+            let (best_move, score, dnodes, runner_ups) = best_move(game, d, Arc::clone(&state));
             state.best_move.store(best_move, Ordering::Relaxed);
+            moves_of_interest = vec![best_move];
+            moves_of_interest.extend(runner_ups.iter().rev());
             nodes += dnodes;
             let best_uci = decode_to_uci(best_move).unwrap();
             if !state.stop.load(Ordering::Relaxed) {
                 let elapsed = start_time.elapsed().as_millis().max(1);
                 let nps = ((nodes * 1000) as u128) / elapsed;
                 println!(
-                    "info depth {i} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
+                    "info depth {d} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
                 );
             }
         }
@@ -151,7 +166,7 @@ const BISHOP_MOD: [i8; 64] = [
 
 #[rustfmt::skip]
 const ROOK_MOD: [i8; 64] = [
-    0,   0,   0,   5,   5,   0,   0,   0,   // rank 1
+    0,   0,   3,   5,   5,   3,   0,   0,   // rank 1
    -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 2
    -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 3
    -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 4
