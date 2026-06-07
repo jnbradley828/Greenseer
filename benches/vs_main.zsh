@@ -14,7 +14,7 @@ mkdir -p benches/results/vs_main
 fastchess \
     -engine cmd=./target/release/Greenseer name=dev \
     -engine cmd=/tmp/Greenseer_main/target/release/Greenseer name=main \
-    -each proto=uci tc=1+0.1 \
+    -each proto=uci tc=2+1 \
     -rounds 50 \
     -config outname=/dev/null \
     -concurrency 1 \

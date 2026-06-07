@@ -1,7 +1,7 @@
 use crate::engine::search::{SearchState, minimax, reorder_moves};
-use oxi_chess_lib;
 use oxi_chess_lib::game::GameResult;
 use oxi_chess_lib::utils::decode_to_uci;
+use oxi_chess_lib::{self, game};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -68,6 +68,7 @@ pub fn iteratively_deepen(
     max_depth: u8,
     state: Arc<SearchState>,
 ) -> u16 {
+    println!("info string start eval {}", evaluate(game));
     let start_time = Instant::now();
     let mut nodes = 0;
     // stores first move in the list just in case "stop" is called immediately.
@@ -101,11 +102,22 @@ pub fn iteratively_deepen(
 
 // returns objective material count
 const PIECE_VALUES: [i16; 5] = [100, 300, 300, 500, 900]; // [p, n, b, r, q]
-fn count_material(game: &oxi_chess_lib::game::ChessGame) -> i16 {
+const MAX_MAJOR_PIECE_MATERIAL: i16 =
+    2 * (PIECE_VALUES[1] * 2) + (PIECE_VALUES[2] * 2) + (PIECE_VALUES[3] * 2 + PIECE_VALUES[4]);
+fn count_material(game: &oxi_chess_lib::game::ChessGame, pawns: bool, total: bool) -> i16 {
     let mut material: i16 = 0;
 
-    material +=
-        PIECE_VALUES[0] as i16 * (game.board.pawns & game.board.white_pieces).count_ones() as i16;
+    if pawns {
+        material += PIECE_VALUES[0] as i16
+            * (game.board.pawns & game.board.white_pieces).count_ones() as i16;
+        let bpawns = PIECE_VALUES[0] as i16
+            * (game.board.pawns & game.board.black_pieces).count_ones() as i16;
+        if total {
+            material += bpawns;
+        } else {
+            material -= bpawns;
+        }
+    }
     material +=
         PIECE_VALUES[1] as i16 * (game.board.knights & game.board.white_pieces).count_ones() as i16;
     material +=
@@ -115,26 +127,30 @@ fn count_material(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     material +=
         PIECE_VALUES[4] as i16 * (game.board.queens & game.board.white_pieces).count_ones() as i16;
 
-    material -=
-        PIECE_VALUES[0] as i16 * (game.board.pawns & game.board.black_pieces).count_ones() as i16;
-    material -=
+    let mut b_material = 0;
+    b_material +=
         PIECE_VALUES[1] as i16 * (game.board.knights & game.board.black_pieces).count_ones() as i16;
-    material -=
+    b_material +=
         PIECE_VALUES[2] as i16 * (game.board.bishops & game.board.black_pieces).count_ones() as i16;
-    material -=
+    b_material +=
         PIECE_VALUES[3] as i16 * (game.board.rooks & game.board.black_pieces).count_ones() as i16;
-    material -=
+    b_material +=
         PIECE_VALUES[4] as i16 * (game.board.queens & game.board.black_pieces).count_ones() as i16;
+    if total {
+        material += b_material;
+    } else {
+        material -= b_material;
+    }
 
     return material;
 }
 
 #[rustfmt::skip]
-const PAWN_MOD: [i8; 64] = [
+const MG_PAWN_MOD: [i8; 64] = [
     0,   0,   0,   0,   0,   0,   0,   0,   // rank 1
     5,  10,  10, -20, -20,  10,  10,   5,   // rank 2
     5,  -5, -10,   0,   0, -10,  -5,   5,   // rank 3
-    0,   0,  20,  20,  20,  20,   0,   0,   // rank 4
+    0,   0,  20,  22,  22,  20,   0,   0,   // rank 4
     5,   5,  15,  25,  25,  15,   5,   5,   // rank 5
    10,  10,  20,  30,  30,  20,  10,  10,   // rank 6
    50,  50,  50,  50,  50,  50,  50,  50,   // rank 7
@@ -142,7 +158,7 @@ const PAWN_MOD: [i8; 64] = [
 ];
 
 #[rustfmt::skip]
-const KNIGHT_MOD: [i8; 64] = [
+const MG_KNIGHT_MOD: [i8; 64] = [
   -50, -40, -30, -30, -30, -30, -40, -50,   // rank 1
   -40, -20,   0,   5,   5,   0, -20, -40,   // rank 2
   -30,   5,  10,  15,  15,  10,   5, -30,   // rank 3
@@ -154,7 +170,7 @@ const KNIGHT_MOD: [i8; 64] = [
 ];
 
 #[rustfmt::skip]
-const BISHOP_MOD: [i8; 64] = [
+const MG_BISHOP_MOD: [i8; 64] = [
   -20, -10, -10, -10, -10, -10, -10, -20,   // rank 1
   -10,   5,   0,   0,   0,   0,   5, -10,   // rank 2
   -10,   0,   5,  10,  10,   5,   0, -10,   // rank 3
@@ -166,7 +182,7 @@ const BISHOP_MOD: [i8; 64] = [
 ];
 
 #[rustfmt::skip]
-const ROOK_MOD: [i8; 64] = [
+const MG_ROOK_MOD: [i8; 64] = [
     0,   0,   3,   5,   5,   3,   0,   0,   // rank 1
    -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 2
    -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 3
@@ -178,7 +194,7 @@ const ROOK_MOD: [i8; 64] = [
 ];
 
 #[rustfmt::skip]
-const QUEEN_MOD: [i8; 64] = [
+const MG_QUEEN_MOD: [i8; 64] = [
   -20, -10, -10,  -5,  -5, -10, -10, -20,   // rank 1
   -10,   0,   0,   0,   0,   0,   0, -10,   // rank 2
   -10,   0,   5,   5,   5,   5,   0, -10,   // rank 3
@@ -190,7 +206,7 @@ const QUEEN_MOD: [i8; 64] = [
 ];
 
 #[rustfmt::skip]
-const KING_MOD: [i8; 64] = [
+const MG_KING_MOD: [i8; 64] = [
    20,  30,  10,   0,   0,  10,  30,  20,   // rank 1
    20,  20,   0,   0,   0,   0,  20,  20,   // rank 2
   -10, -20, -20, -20, -20, -20, -20, -10,   // rank 3
@@ -199,6 +215,78 @@ const KING_MOD: [i8; 64] = [
   -30, -40, -40, -50, -50, -40, -40, -30,   // rank 6
   -30, -40, -40, -50, -50, -40, -40, -30,   // rank 7
   -30, -40, -40, -50, -50, -40, -40, -30    // rank 8
+];
+
+#[rustfmt::skip]
+const EG_PAWN_MOD: [i8; 64] = [
+    0,   0,   0,   0,   0,   0,   0,   0,
+   -5,  -5,  -5,  -5,  -5,  -5,  -5,  -5,
+    0,   0,   0,   0,   0,   0,   0,   0,
+    5,   5,   5,   5,   5,   5,   5,   5,
+   15,  15,  15,  15,  15,  15,  15,  15,
+   30,  30,  30,  30,  30,  30,  30,  30,
+   55,  60,  60,  60,  60,  60,  60,  55,
+    0,   0,   0,   0,   0,   0,   0,   0
+];
+
+#[rustfmt::skip]
+const EG_KNIGHT_MOD: [i8; 64] = [
+  -60, -50, -40, -40, -40, -40, -50, -60,
+  -50, -30, -15, -10, -10, -15, -30, -50,
+  -40, -15,   5,   8,   8,   5, -15, -40,
+  -40, -10,   8,  15,  15,   8, -10, -40,
+  -40, -10,   8,  15,  15,   8, -10, -40,
+  -40, -15,   5,   8,   8,   5, -15, -40,
+  -50, -30, -15, -10, -10, -15, -30, -50,
+  -60, -50, -40, -40, -40, -40, -50, -60
+];
+
+#[rustfmt::skip]
+const EG_BISHOP_MOD: [i8; 64] = [
+  -15,  -5,  -5,  -5,  -5,  -5,  -5, -15,
+   -5,   0,   0,   0,   0,   0,   0,  -5,
+   -5,   0,   8,  10,  10,   8,   0,  -5,
+   -5,   0,  10,  15,  15,  10,   0,  -5,
+   -5,   0,  10,  15,  15,  10,   0,  -5,
+   -5,   0,   8,  10,  10,   8,   0,  -5,
+   -5,   5,   0,   0,   0,   0,   5,  -5,
+  -15,  -5,  -5,  -5,  -5,  -5,  -5, -15
+];
+
+#[rustfmt::skip]
+const EG_ROOK_MOD: [i8; 64] = [
+   -5,  -5,  -5,  -5,  -5,  -5,  -5,  -5,
+    0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,
+    5,   5,   5,   5,   5,   5,   5,   5,
+   20,  20,  20,  20,  20,  20,  20,  20,
+    5,   5,   5,   5,   5,   5,   5,   5
+];
+
+#[rustfmt::skip]
+const EG_QUEEN_MOD: [i8; 64] = [
+  -20, -10, -10,  -5,  -5, -10, -10, -20,
+  -10,   0,   5,   5,   5,   5,   0, -10,
+  -10,   5,   8,  10,  10,   8,   5, -10,
+   -5,   5,  10,  12,  12,  10,   5,  -5,
+   -5,   5,  10,  12,  12,  10,   5,  -5,
+  -10,   5,   8,  10,  10,   8,   5, -10,
+  -10,   0,   5,   5,   5,   5,   0, -10,
+  -20, -10, -10,  -5,  -5, -10, -10, -20
+];
+
+#[rustfmt::skip]
+const EG_KING_MOD: [i8; 64] = [
+  -20, -10,   0,   5,   5,   0, -10, -20,
+  -10,   5,  15,  20,  20,  15,   5, -10,
+    0,  15,  25,  30,  30,  25,  15,   0,
+    5,  20,  30,  35,  35,  30,  20,   5,
+    5,  20,  30,  35,  35,  30,  20,   5,
+    0,  15,  25,  30,  30,  25,  15,   0,
+  -10,   5,  15,  20,  20,  15,   5, -10,
+  -20, -10,   0,   5,   5,   0, -10, -20
 ];
 
 // returns objective static evaluation.
@@ -212,14 +300,14 @@ pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
         return -10000;
     } else {
         let mut eval: i16 = 0;
-        eval += count_material(game);
+        eval += count_material(game, true, false);
         eval += positional_mods(game);
         return eval;
     }
 }
 
 pub fn positional_mods(game: &oxi_chess_lib::game::ChessGame) -> i16 {
-    let mut modifier: i16 = 0;
+    let major_piece_count = count_material(game, false, true);
 
     let w_bbs: [u64; 6] = [
         game.board.pawns & game.board.white_pieces,
@@ -239,27 +327,49 @@ pub fn positional_mods(game: &oxi_chess_lib::game::ChessGame) -> i16 {
         game.board.kings & game.board.black_pieces,
     ];
 
-    for i in 0..6 {
-        modifier += bb_to_posmod(w_bbs[i], i as u8, true);
-        modifier += bb_to_posmod(b_bbs[i], i as u8, false);
-    }
+    let mut mg_modifier: i16 = 0;
+    let mut eg_modifier: i16 = 0;
 
-    return modifier;
+    for i in 0..6 {
+        mg_modifier += bb_to_posmod(w_bbs[i], i as u8, true, false)
+            + bb_to_posmod(b_bbs[i], i as u8, false, false);
+        eg_modifier += bb_to_posmod(w_bbs[i], i as u8, true, true)
+            + bb_to_posmod(b_bbs[i], i as u8, false, true);
+    }
+    let eg_weighted = ((MAX_MAJOR_PIECE_MATERIAL - major_piece_count) as f32
+        / MAX_MAJOR_PIECE_MATERIAL as f32)
+        * eg_modifier as f32;
+    let mg_weighted =
+        (major_piece_count as f32 / MAX_MAJOR_PIECE_MATERIAL as f32) * mg_modifier as f32;
+
+    return (mg_weighted + eg_weighted + 0.5) as i16;
 }
 
 // piece type 0-5 = pawn, knight, bishop, rook, queen, king
 // returns objective positional score modifications
-pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool) -> i16 {
+pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, endgame: bool) -> i16 {
     let mod_mask: &[i8; 64];
     let mut modifier: i16 = 0;
-    match piece_type {
-        0 => mod_mask = &PAWN_MOD,
-        1 => mod_mask = &KNIGHT_MOD,
-        2 => mod_mask = &BISHOP_MOD,
-        3 => mod_mask = &ROOK_MOD,
-        4 => mod_mask = &QUEEN_MOD,
-        5 => mod_mask = &KING_MOD,
-        _ => panic!("unexpected piece type value: {}", piece_type),
+    if endgame {
+        match piece_type {
+            0 => mod_mask = &EG_PAWN_MOD,
+            1 => mod_mask = &EG_KNIGHT_MOD,
+            2 => mod_mask = &EG_BISHOP_MOD,
+            3 => mod_mask = &EG_ROOK_MOD,
+            4 => mod_mask = &EG_QUEEN_MOD,
+            5 => mod_mask = &EG_KING_MOD,
+            _ => panic!("unexpected piece type value: {}", piece_type),
+        }
+    } else {
+        match piece_type {
+            0 => mod_mask = &MG_PAWN_MOD,
+            1 => mod_mask = &MG_KNIGHT_MOD,
+            2 => mod_mask = &MG_BISHOP_MOD,
+            3 => mod_mask = &MG_ROOK_MOD,
+            4 => mod_mask = &MG_QUEEN_MOD,
+            5 => mod_mask = &MG_KING_MOD,
+            _ => panic!("unexpected piece type value: {}", piece_type),
+        }
     }
     let mut mbb: u64 = bb;
     if to_move {
