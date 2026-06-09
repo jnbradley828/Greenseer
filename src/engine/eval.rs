@@ -1,4 +1,4 @@
-use crate::engine::search::{SearchState, minimax, reorder_moves};
+use crate::engine::search::{self, SearchState, minimax, reorder_moves};
 use oxi_chess_lib::game::GameResult;
 use oxi_chess_lib::utils::{self, decode_to_uci};
 use oxi_chess_lib::{self, game};
@@ -25,6 +25,8 @@ pub fn best_move(
         i16::MIN,
         i16::MAX,
         Arc::clone(&state),
+        false,
+        search::MAX_QDEPTH,
     );
     nodes += m_nodes;
     _ = game.unmake_move();
@@ -47,6 +49,8 @@ pub fn best_move(
             alpha,
             i16::MAX,
             Arc::clone(&state),
+            false,
+            search::MAX_QDEPTH,
         );
         nodes += m_nodes;
         _ = game.unmake_move();

@@ -20,6 +20,7 @@ caffeinate -s -i -m fastchess \
     -config outname=/dev/null \
     -concurrency 1 \
     -log engine=false \
+    -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/8moves_v3.pgn format=pgn order=random -repeat \
     | grep --line-buffered -v "Warning" | tee /dev/tty | grep -v "Started game" > benches/results/vs_main/$(date +%Y%m%d_%H%M%S).txt
 
 # cleanup
