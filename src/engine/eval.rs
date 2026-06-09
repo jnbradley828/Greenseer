@@ -309,7 +309,7 @@ pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
 }
 
 // value tuned based on fastchess match results.
-// const C: f32 = 100.0;
+const C: f32 = 15.0;
 
 const EARLY_QUEEN_FACTOR: i16 = 10;
 
@@ -358,13 +358,9 @@ pub fn positional_mods(
     // if up material, try to total material count low..
     // Do this by applying a positional bonus/decrement = (material_net/material_total) * c
     // c determines how impactful this is to evaluation.
-    /*
+
     let trading_incentive =
         (100.0 * C * (net_material as f32 / total_material as f32)).round() as i16;
-
-    let result = ((mg_weighted + eg_weighted).round() as i16) + trading_incentive;
-    return result;
-    */
 
     // give a penalty for early queen moves.
     let mut early_queen_mod: i16 = 0;
@@ -382,7 +378,9 @@ pub fn positional_mods(
     }
 
     let mut result = (mg_weighted + eg_weighted).round() as i16;
+    result += trading_incentive;
     result += early_queen_mod;
+
     return result;
 }
 
