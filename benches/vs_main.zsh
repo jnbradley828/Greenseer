@@ -11,11 +11,11 @@ cargo build --release --manifest-path /tmp/Greenseer_main/Cargo.toml
 
 mkdir -p benches/results/vs_main
 
-fastchess \
+caffeinate -s -i -d fastchess \
     -engine cmd=./target/release/Greenseer name=dev \
     -engine cmd=/tmp/Greenseer_main/target/release/Greenseer name=main \
-    -each proto=uci tc=2+1 \
-    -rounds 50 \
+    -each proto=uci tc=2+0.01 \
+    -rounds 150 \
     -config outname=/dev/null \
     -concurrency 1 \
     -log engine=false \

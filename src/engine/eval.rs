@@ -1,6 +1,6 @@
 use crate::engine::search::{SearchState, minimax, reorder_moves};
 use oxi_chess_lib::game::GameResult;
-use oxi_chess_lib::utils::decode_to_uci;
+use oxi_chess_lib::utils::{self, decode_to_uci};
 use oxi_chess_lib::{self, game};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -300,13 +300,25 @@ pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
         return -10000;
     } else {
         let mut eval: i16 = 0;
-        eval += count_material(game, true, false);
-        eval += positional_mods(game);
+        let net_material = count_material(game, true, false);
+        let total_material = count_material(game, true, true);
+        eval += net_material;
+        eval += positional_mods(game, net_material, total_material);
         return eval;
     }
 }
 
-pub fn positional_mods(game: &oxi_chess_lib::game::ChessGame) -> i16 {
+// value tuned based on fastchess match results.
+// const C: f32 = 100.0;
+
+const EARLY_QUEEN_FACTOR: i16 = 10;
+
+// returns objective positional modifications to score.
+pub fn positional_mods(
+    game: &oxi_chess_lib::game::ChessGame,
+    net_material: i16,
+    total_material: i16,
+) -> i16 {
     let major_piece_count = count_material(game, false, true);
 
     let w_bbs: [u64; 6] = [
@@ -342,7 +354,36 @@ pub fn positional_mods(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     let mg_weighted =
         (major_piece_count as f32 / MAX_MAJOR_PIECE_MATERIAL as f32) * mg_modifier as f32;
 
-    return (mg_weighted + eg_weighted + 0.5) as i16;
+    // if down material, try to keep total material count high (don't trade).
+    // if up material, try to total material count low..
+    // Do this by applying a positional bonus/decrement = (material_net/material_total) * c
+    // c determines how impactful this is to evaluation.
+    /*
+    let trading_incentive =
+        (100.0 * C * (net_material as f32 / total_material as f32)).round() as i16;
+
+    let result = ((mg_weighted + eg_weighted).round() as i16) + trading_incentive;
+    return result;
+    */
+
+    // give a penalty for early queen moves.
+    let mut early_queen_mod: i16 = 0;
+    if game.board.fullmove_number <= 6 {
+        let w_queen_home: bool =
+            (game.board.queens & game.board.white_pieces) & 0x0000000000000008 != 0;
+        let b_queen_home: bool =
+            (game.board.queens & game.board.black_pieces) & 0x0800000000000000 != 0;
+        if !w_queen_home {
+            early_queen_mod -= ((7 - game.board.fullmove_number) as i16) * EARLY_QUEEN_FACTOR;
+        }
+        if !b_queen_home {
+            early_queen_mod += ((7 - game.board.fullmove_number) as i16) * EARLY_QUEEN_FACTOR;
+        }
+    }
+
+    let mut result = (mg_weighted + eg_weighted).round() as i16;
+    result += early_queen_mod;
+    return result;
 }
 
 // piece type 0-5 = pawn, knight, bishop, rook, queen, king
