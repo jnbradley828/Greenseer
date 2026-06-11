@@ -4,9 +4,10 @@ use oxi_chess_lib::{
     rules, utils,
 };
 
-use crate::engine::eval::unsigned_evaluate;
+use crate::engine::utils::{retrieve_tt_or_none, update_tt};
+use crate::engine::{self, eval::unsigned_evaluate};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 
 pub struct SearchState {
     pub stop: AtomicBool,
@@ -17,6 +18,24 @@ impl SearchState {
         Self {
             stop: AtomicBool::new(false),
             best_move: AtomicU16::new(0),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct TT {
+    pub entries: Arc<Vec<AtomicU64>>,
+    pub size_mb: usize,
+}
+impl TT {
+    pub fn new(size_mb: usize) -> Self {
+        let no_entries = (size_mb * (2 as usize).pow(20)) / 8;
+        let entry_vec = std::iter::repeat_with(|| AtomicU64::new(0))
+            .take(no_entries)
+            .collect();
+        Self {
+            entries: Arc::new(entry_vec),
+            size_mb: size_mb,
         }
     }
 }
@@ -35,16 +54,46 @@ pub fn minimax(
     beta: i16,
     state: Arc<SearchState>,
     quiescence: bool,
+    check_extension: bool,
     qdepth: u8,
+    tt: &mut TT,
 ) -> (i16, u64) {
     let mut nodes: u64 = 1;
     if game.result != GameResult::InProgress {
         return (unsigned_evaluate(game, max_side), nodes);
     }
+
+    // check tt before calculation logic
+    if let Some(tt_entry) = retrieve_tt_or_none(tt, game.board.zobrist_hash) {
+        // case to use: tt_depth >= search depth
+        // if flag is exact: return tt score
+        // if flag is lower bound & tt score >= beta: return tt score (it will trigger a cutoff at parent node)
+        // if flag is upper bound & tt score <= alpha: return tt score (it will trigger a cutoff at parent node)
+        if tt_entry.2 >= depth {
+            match tt_entry.3 {
+                0 => return (tt_entry.1, nodes),
+                1 => {
+                    if tt_entry.1 >= beta {
+                        return (tt_entry.1, nodes);
+                    }
+                }
+                2 => {
+                    if tt_entry.1 <= alpha {
+                        return (tt_entry.1, nodes);
+                    }
+                }
+                _ => {}
+            }
+        }
+        reorder_moves(game, vec![tt_entry.4]);
+    }
+
     if depth == 0 {
         // check extension: if the position is check: search depth 1.
         if rules::is_check(&game.board, game.board.side_to_move) {
-            return minimax(game, 1, max_side, alpha, beta, state, false, qdepth);
+            return minimax(
+                game, 1, max_side, alpha, beta, state, false, true, qdepth, tt,
+            );
         } else {
             // quiescence search: continue search until all captures are complete.
             let stand_pat_eval = (unsigned_evaluate(game, max_side), nodes).0;
@@ -60,8 +109,18 @@ pub fn minimax(
             if qdepth == 0 {
                 return (stand_pat_eval, nodes);
             } else {
-                let (q_eval, q_nodes) =
-                    minimax(game, 1, max_side, alpha, beta, state, true, qdepth - 1);
+                let (q_eval, q_nodes) = minimax(
+                    game,
+                    1,
+                    max_side,
+                    alpha,
+                    beta,
+                    state,
+                    true,
+                    false,
+                    qdepth - 1,
+                    tt,
+                );
                 nodes += q_nodes;
                 if max_side == game.board.side_to_move {
                     // maximizing node: stand_pat is a floor
@@ -76,6 +135,8 @@ pub fn minimax(
         if max_side == game.board.side_to_move {
             let mut alpha = alpha;
             let mut max_eval = i16::MIN;
+            let mut cutoff = false;
+            let mut best_move = game.legal_moves[0];
             for movei in game.legal_moves.clone() {
                 if state.stop.load(Ordering::Relaxed) {
                     return (0, nodes);
@@ -93,24 +154,52 @@ pub fn minimax(
                     beta,
                     Arc::clone(&state),
                     false,
+                    false,
                     qdepth,
+                    tt,
                 );
                 nodes += child_nodes;
                 _ = game.unmake_move();
                 if eval > max_eval {
                     max_eval = eval;
+                    best_move = movei;
                 }
                 if max_eval > alpha {
                     alpha = max_eval
                 }
                 if alpha >= beta {
+                    cutoff = true;
                     break;
                 }
             }
+
+            // tt update logic
+            if cutoff && !(quiescence || check_extension) {
+                update_tt(
+                    tt,
+                    game.board.zobrist_hash,
+                    max_eval,
+                    depth,
+                    engine::utils::TT_LOWERB_FLAG,
+                    best_move,
+                );
+            } else if !(quiescence || check_extension) {
+                update_tt(
+                    tt,
+                    game.board.zobrist_hash,
+                    max_eval,
+                    depth,
+                    engine::utils::TT_EXACT_FLAG,
+                    best_move,
+                );
+            }
+
             return (max_eval, nodes);
         } else {
             let mut beta = beta;
             let mut min_eval = i16::MAX;
+            let mut cutoff = false;
+            let mut best_move = game.legal_moves[0];
             for movei in game.legal_moves.clone() {
                 if state.stop.load(Ordering::Relaxed) {
                     return (0, nodes);
@@ -128,20 +217,46 @@ pub fn minimax(
                     beta,
                     Arc::clone(&state),
                     false,
+                    false,
                     qdepth,
+                    tt,
                 );
                 nodes += child_nodes;
                 _ = game.unmake_move();
                 if eval < min_eval {
                     min_eval = eval;
+                    best_move = movei;
                 }
                 if min_eval < beta {
                     beta = min_eval
                 }
                 if alpha >= beta {
+                    cutoff = true;
                     break;
                 }
             }
+
+            // tt update logic
+            if cutoff && !(quiescence || check_extension) {
+                update_tt(
+                    tt,
+                    game.board.zobrist_hash,
+                    min_eval,
+                    depth,
+                    engine::utils::TT_UPPERB_FLAG,
+                    best_move,
+                );
+            } else if !(quiescence || check_extension) {
+                update_tt(
+                    tt,
+                    game.board.zobrist_hash,
+                    min_eval,
+                    depth,
+                    engine::utils::TT_EXACT_FLAG,
+                    best_move,
+                );
+            }
+
             return (min_eval, nodes);
         }
     }
@@ -159,58 +274,4 @@ pub fn reorder_moves(game: &mut ChessGame, promising_moves: Vec<u16>) -> () {
             front += 1;
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /*
-    #[test]
-    fn test_minimax() {
-        let mut game = ChessGame::initialize((1, 1), Some("k7/7P/8/8/8/8/8/K7 w - - 0 1"));
-        let mm0 = minimax(
-            &mut game,
-            0,
-            true,
-            i16::MIN,
-            i16::MAX,
-            Arc::new(SearchState::new()),
-        )
-        .0;
-        assert_eq!(mm0, 1);
-        let mm1 = minimax(
-            &mut game,
-            1,
-            true,
-            i16::MIN,
-            i16::MAX,
-            Arc::new(SearchState::new()),
-        )
-        .0;
-        assert_eq!(mm1, 9);
-
-        let mut game = ChessGame::initialize((1, 1), Some("3r4/8/8/8/8/k7/8/K7 b - - 0 1"));
-        let mm0 = minimax(
-            &mut game,
-            0,
-            false,
-            i16::MIN,
-            i16::MAX,
-            Arc::new(SearchState::new()),
-        )
-        .0;
-        assert_eq!(mm0, 5);
-        let mm1 = minimax(
-            &mut game,
-            1,
-            false,
-            i16::MIN,
-            i16::MAX,
-            Arc::new(SearchState::new()),
-        )
-        .0;
-        assert_eq!(mm1, 10000);
-    }
-    */
 }

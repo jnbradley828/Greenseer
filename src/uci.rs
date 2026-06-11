@@ -1,6 +1,5 @@
 use crate::engine::eval::iteratively_deepen;
-use crate::engine::search::SearchState;
-use oxi_chess_lib::board::ChessBoard;
+use crate::engine::search::{SearchState, TT};
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::utils::decode_to_uci;
 use std::cmp::min;
@@ -15,24 +14,29 @@ use std::{
 pub fn run() {
     let mut game = ChessGame::initialize((1, 1), None);
     let state = Arc::new(SearchState::new());
+    let mut tt = TT::new(128);
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
-        handle_command(&line, &mut game, Arc::clone(&state));
+        handle_command(&line, &mut game, Arc::clone(&state), &mut tt);
     }
 }
 
-pub fn handle_command(cmd: &str, game: &mut ChessGame, state: Arc<SearchState>) {
+pub fn handle_command(cmd: &str, game: &mut ChessGame, state: Arc<SearchState>, tt: &mut TT) {
     let parts: Vec<&str> = cmd.trim().split_whitespace().collect();
     if parts.is_empty() {
         return;
     }
     match parts[0] {
         "uci" => uci_response(),
+        "setoption" => handle_setoption(&parts, tt),
         "isready" => println!("readyok"),
-        "ucinewgame" => *game = ChessGame::initialize((1, 1), None),
+        "ucinewgame" => {
+            *game = ChessGame::initialize((1, 1), None);
+            *tt = TT::new(128);
+        }
         "position" => handle_position(&parts, game),
-        "go" => handle_go(&parts, game, Arc::clone(&state)),
+        "go" => handle_go(&parts, game, Arc::clone(&state), tt),
         "quit" => std::process::exit(0),
         "stop" => handle_stop(Arc::clone(&state)),
         _ => {}
@@ -42,7 +46,22 @@ pub fn handle_command(cmd: &str, game: &mut ChessGame, state: Arc<SearchState>) 
 fn uci_response() {
     println!("id name Greenseer 0.1");
     println!("id author Joshua Bradley");
+    println!("option name Hash type spin default 128 min 1 max 65536");
     println!("uciok");
+}
+
+fn handle_setoption(parts: &[&str], tt: &mut TT) {
+    let tt_parts = [
+        parts.get(1) == Some(&"name"),
+        parts.get(2) == Some(&"Hash"),
+        parts.get(3) == Some(&"value"),
+        parts.get(4).unwrap_or(&"a").parse::<usize>().is_ok(),
+    ];
+
+    if tt_parts.iter().all(|&x| x) {
+        let tt_size = parts[4].parse::<usize>().unwrap();
+        *tt = TT::new(tt_size);
+    }
 }
 
 fn handle_position(parts: &[&str], game: &mut ChessGame) {
@@ -73,7 +92,7 @@ fn handle_position(parts: &[&str], game: &mut ChessGame) {
     }
 }
 
-fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
+fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: &mut TT) {
     state.stop.store(false, Ordering::Relaxed);
     let depth = parts
         .iter()
@@ -122,8 +141,10 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
             });
 
             let mut game_clone = game.clone();
+            let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let _ = iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state));
+                let _ =
+                    iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
                 cancel.store(true, Ordering::Relaxed);
                 let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
                 println!("bestmove {}", uci_move);
@@ -131,8 +152,14 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
         }
         (Some(d), _, None, None, None, None) => {
             let mut game_clone = game.clone();
+            let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let _ = iteratively_deepen(&mut game_clone, depth.unwrap(), Arc::clone(&state));
+                let _ = iteratively_deepen(
+                    &mut game_clone,
+                    depth.unwrap(),
+                    Arc::clone(&state),
+                    &mut tt_clone,
+                );
                 let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
                 println!("bestmove {}", uci_move);
             });
@@ -163,8 +190,10 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>) {
             });
 
             let mut game_clone = game.clone();
+            let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let _ = iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state));
+                let _ =
+                    iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
                 cancel.store(true, Ordering::Relaxed);
                 let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
                 println!("bestmove {}", uci_move);
