@@ -1,0 +1,39 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 6h
+          script: |
+            # stop the bot
+            screen -S lichess-bot -X stuff $'\x03'
+
+            # bot stays active until it finishes its current game. Block waiting.
+            while pgrep -f "lichess-bot.py" > /dev/null; do
+              echo "Waiting for bot to finish current game..."
+              sleep 10
+            done
+
+            echo "Bot stopped, rebuilding Greenseer..."
+
+            # rebuild Greenseer
+            cd ~/Greenseer
+            git pull
+            cargo build --release
+
+            screen -S lichess-bot -X stuff "cd ~/lichess-bot && source venv/bin/activate && python3 lichess-bot.py\n"
+
+            echo "Bot restarted successfully!"
