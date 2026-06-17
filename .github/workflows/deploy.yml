@@ -19,11 +19,14 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 6h
           script: |
+            # get PID of bot process
+            BOT_PID=$(pgrep -f "python3 lichess-bot.py" | grep -v $$)
+
             # stop the bot
             screen -S lichess-bot -X stuff $'\x03'
 
             # bot stays active until it finishes its current game. Block waiting.
-            while pgrep -f "lichess-bot.py" > /dev/null; do
+            while kill -0 $BOT_PID 2>/dev/null; do
               echo "Waiting for bot to finish current game..."
               sleep 10
             done
