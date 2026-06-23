@@ -204,7 +204,7 @@ pub fn minimax(
                 if state.stop.load(Ordering::Relaxed) {
                     return (0, nodes);
                 }
-                if quiescence && ![1, 8, 9, 10, 11].contains(&utils::decode_move(movei)[2]) {
+                if quiescence && ![1, 3, 8, 9, 10, 11].contains(&utils::decode_move(movei)[2]) {
                     // if quiescence only search: skip non captures.
                     continue;
                 }
