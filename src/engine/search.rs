@@ -63,8 +63,17 @@ pub fn minimax(
         return (unsigned_evaluate(game, max_side), nodes);
     }
 
+    // skip tt is position is a repetition. (reduces 3fold repetition in won positions)
+    let mut skip_tt = false;
+    if let Some(&count) = game.positions_count.get(&game.board.zobrist_hash)
+        && count >= 2
+    {
+        skip_tt = true;
+    }
     // check tt before calculation logic
-    if let Some(tt_entry) = retrieve_tt_or_none(tt, game.board.zobrist_hash) {
+    if let Some(tt_entry) = retrieve_tt_or_none(tt, game.board.zobrist_hash)
+        && !skip_tt
+    {
         // case to use: tt_depth >= search depth
         // if flag is exact: return tt score
         // if flag is lower bound & tt score >= beta: return tt score (it will trigger a cutoff at parent node)
