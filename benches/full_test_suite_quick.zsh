@@ -2,12 +2,12 @@ FIRST=${1:-m}
 
 run_endgames() {
     echo "Running endgame performance tournament."
-    "$(dirname "$0")/vs_main_endgames.zsh"
+    "$(dirname "$0")/vs_main_endgames_quick.zsh"
 }
 
 run_middlegames() {
     echo "Running middlegame performance tournament."
-    "$(dirname "$0")/vs_main_middlegames.zsh"
+    "$(dirname "$0")/vs_main_middlegames_quick.zsh"
 }
 
 if [ "$FIRST" = "e" ]; then
