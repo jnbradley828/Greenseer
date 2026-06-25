@@ -1,6 +1,10 @@
 use oxi_chess_lib::{
     self,
-    game::{ChessGame, GameResult},
+    game::{
+        ChessGame, DrawReason,
+        GameResult::{self, BlackWins, WhiteWins},
+        WinReason,
+    },
     rules, utils,
 };
 
@@ -57,10 +61,21 @@ pub fn minimax(
     check_extension: bool,
     qdepth: u8,
     tt: &mut TT,
+    ply: u8,
 ) -> (i16, u64) {
     let mut nodes: u64 = 1;
     if game.result != GameResult::InProgress {
-        return (unsigned_evaluate(game, max_side), nodes);
+        // if game is over in this position
+        if !matches!(game.result, GameResult::Draw(_)) {
+            // if checkmate
+            if max_side != game.board.side_to_move {
+                return (10000 - ply as i16, nodes);
+            } else {
+                return (-10000 + ply as i16, nodes);
+            }
+        } else {
+            return (0, nodes);
+        }
     }
 
     // skip tt is position is a repetition. (reduces 3fold repetition in won positions)
@@ -101,7 +116,17 @@ pub fn minimax(
         // check extension: if the position is check: search depth 1.
         if rules::is_check(&game.board, game.board.side_to_move) {
             return minimax(
-                game, 1, max_side, alpha, beta, state, false, true, qdepth, tt,
+                game,
+                1,
+                max_side,
+                alpha,
+                beta,
+                state,
+                false,
+                true,
+                qdepth,
+                tt,
+                ply + 1,
             );
         } else {
             // quiescence search: continue search until all captures are complete.
@@ -129,6 +154,7 @@ pub fn minimax(
                     false,
                     qdepth - 1,
                     tt,
+                    ply + 1,
                 );
                 nodes += q_nodes;
                 if max_side == game.board.side_to_move {
@@ -166,6 +192,7 @@ pub fn minimax(
                     false,
                     qdepth,
                     tt,
+                    ply + 1,
                 );
                 nodes += child_nodes;
                 _ = game.unmake_move();
@@ -229,6 +256,7 @@ pub fn minimax(
                     false,
                     qdepth,
                     tt,
+                    ply + 1,
                 );
                 nodes += child_nodes;
                 _ = game.unmake_move();

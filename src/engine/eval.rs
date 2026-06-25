@@ -30,6 +30,7 @@ pub fn best_move(
         false,
         search::MAX_QDEPTH,
         tt,
+        1,
     );
     nodes += m_nodes;
     _ = game.unmake_move();
@@ -56,6 +57,7 @@ pub fn best_move(
             false,
             search::MAX_QDEPTH,
             tt,
+            1,
         );
         nodes += m_nodes;
         _ = game.unmake_move();
@@ -302,20 +304,12 @@ const EG_KING_MOD: [i8; 64] = [
 // returns objective static evaluation.
 pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     // evaluates WITHOUT future calculation. use minimax to calculate at depth.
-    if matches!(game.result, GameResult::Draw(_)) {
-        return 0;
-    } else if matches!(game.result, GameResult::WhiteWins(_)) {
-        return 10000;
-    } else if matches!(game.result, GameResult::BlackWins(_)) {
-        return -10000;
-    } else {
-        let mut eval: i16 = 0;
-        let net_material = count_material(game, true, false);
-        let total_material = count_material(game, true, true);
-        eval += net_material;
-        eval += positional_mods(game, net_material, total_material);
-        return eval;
-    }
+    let mut eval: i16 = 0;
+    let net_material = count_material(game, true, false);
+    let total_material = count_material(game, true, true);
+    eval += net_material;
+    eval += positional_mods(game, net_material, total_material);
+    return eval;
 }
 
 // value tuned based on fastchess match results.
