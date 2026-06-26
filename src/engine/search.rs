@@ -109,7 +109,11 @@ pub fn minimax(
                 _ => {}
             }
         }
-        reorder_moves(game, vec![tt_entry.4]);
+        reorder_moves(game, &mut vec![tt_entry.4]);
+    } else if !quiescence && !check_extension {
+        // don't reorder on quiescence search because we are already only checking captures & checks.
+        // to do: test if elo improves if we allow check extension reordering. is the overhead worth reordering a small list of moves?
+        reorder_moves(game, &mut vec![]);
     }
 
     if depth == 0 {
@@ -299,8 +303,28 @@ pub fn minimax(
     }
 }
 
-pub fn reorder_moves(game: &mut ChessGame, promising_moves: Vec<u16>) -> () {
-    // put promising moves in the front!
+pub fn reorder_moves(game: &mut ChessGame, promising_moves: &mut Vec<u16>) -> () {
+    let mut checks: Vec<u16> = Vec::new();
+    let mut captures: Vec<u16> = Vec::new();
+    let lgl_mvs_copy = game.legal_moves.clone();
+    for mv in lgl_mvs_copy {
+        if promising_moves.contains(&mv) {
+            continue;
+        } else {
+            if oxi_chess_lib::rules::is_check(&game.board, game.board.side_to_move) {
+                // to do: create function in oxi_chess_lib::moves to find check statically (without making/unmaking moves).
+                continue;
+            } else if [1, 3, 8, 9, 10, 11]
+                .contains(&(oxi_chess_lib::utils::decode_move(mv)[2] as i32))
+            {
+                captures.push(mv);
+            }
+        }
+    }
+    promising_moves.append(&mut checks);
+    promising_moves.append(&mut captures);
+
+    // put promising moves from last depth in the front!
     let mut front = 0;
     for i in 0..promising_moves.len() {
         if let Some(j) = game.legal_moves[front..]

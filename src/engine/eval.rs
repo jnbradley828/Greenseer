@@ -15,7 +15,7 @@ pub fn best_move(
     tt: &mut TT,
 ) -> (u16, i16, u64, VecDeque<u16>) {
     let mut best_move = game.legal_moves[0];
-    const RUNNER_UPS_MAX: usize = 3;
+    const RUNNER_UPS_MAX: usize = 2;
     let mut runner_ups = VecDeque::with_capacity(RUNNER_UPS_MAX);
     _ = game.make_move(game.legal_moves[0]);
     let mut nodes: u64 = 0;
@@ -93,7 +93,7 @@ pub fn iteratively_deepen(
         if state.stop.load(Ordering::Relaxed) {
             return state.best_move.load(Ordering::Relaxed);
         } else {
-            reorder_moves(game, moves_of_interest);
+            reorder_moves(game, &mut moves_of_interest);
             let (best_move, score, dnodes, runner_ups) = best_move(game, d, Arc::clone(&state), tt);
             state.best_move.store(best_move, Ordering::Relaxed);
             moves_of_interest = vec![best_move];
