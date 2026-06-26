@@ -177,6 +177,9 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
             if game.moves.len() < 2 {
                 mt = min(mt, 3000);
             }
+            if game.legal_moves.len() == 1 {
+                mt = 50;
+            }
 
             let cancel = Arc::new(AtomicBool::new(false));
             let cancel_c = Arc::clone(&cancel);
