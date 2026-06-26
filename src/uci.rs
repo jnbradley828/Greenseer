@@ -171,14 +171,16 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
                 (bt, binc.unwrap_or(0))
             };
 
-            let mut mt = (time / 20) + (inc / 2);
+            let mut mt: u32;
 
-            // cap thinking at 3 seconds if this is move 1.
-            if game.moves.len() < 2 {
-                mt = min(mt, 3000);
-            }
+            // cap thinking at 50ms if there is only 1 move, 3 seconds if this is move 1.
             if game.legal_moves.len() == 1 {
                 mt = 50;
+            } else {
+                mt = (time / 20) + (inc / 2);
+                if game.moves.len() <= 2 {
+                    mt = min(mt, 3000);
+                }
             }
 
             let cancel = Arc::new(AtomicBool::new(false));
