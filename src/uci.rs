@@ -165,21 +165,22 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
             });
         }
         (_, _, Some(wt), Some(bt), _, _) => {
-            let (time, inc) = if game.board.side_to_move {
-                (wt, winc.unwrap_or(0))
+            let (time, inc, opptime) = if game.board.side_to_move {
+                (wt, winc.unwrap_or(0), bt)
             } else {
-                (bt, binc.unwrap_or(0))
+                (bt, binc.unwrap_or(0), wt)
             };
 
             let mut mt: u32;
 
-            // cap thinking at 50ms if there is only 1 move, 3 seconds if this is move 1.
+            // cap thinking at 50ms if there is only 1 move, 3 seconds if this is move 1. Cap time at time remaining / 10 if low on time (<=3 seconds)
             if game.legal_moves.len() == 1 {
                 mt = 50;
             } else {
-                mt = (time / 20) + (inc / 2);
-                if game.moves.len() <= 2 {
-                    mt = min(mt, 3000);
+                mt = (time / 20) + (inc * 3 / 4);
+                mt = ((mt as f32) * (time as f32 / opptime as f32) + 0.5) as u32; // scales time based on time differential.
+                if game.moves.len() <= 3 {
+                    mt = min(mt, 1500);
                 }
             }
 
