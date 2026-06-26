@@ -1,12 +1,12 @@
 FIRST=${1:-m}
 
 run_endgames() {
-    echo "Running endgame performance tournament."
+    echo "Running quick endgame performance tournament."
     "$(dirname "$0")/vs_main_endgames_quick.zsh"
 }
 
 run_middlegames() {
-    echo "Running middlegame performance tournament."
+    echo "Running quick middlegame performance tournament."
     "$(dirname "$0")/vs_main_middlegames_quick.zsh"
 }
 
