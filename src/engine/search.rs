@@ -173,6 +173,7 @@ pub fn minimax(
     } else {
         if max_side == game.board.side_to_move {
             let mut alpha = alpha;
+            let alpha_orig = alpha;
             let mut max_eval = i16::MIN;
             let mut cutoff = false;
             let mut best_move = game.legal_moves[0];
@@ -213,30 +214,22 @@ pub fn minimax(
                 }
             }
 
-            // tt update logic
-            if cutoff && !(quiescence || check_extension) {
-                update_tt(
-                    tt,
-                    game.board.zobrist_hash,
-                    max_eval,
-                    depth,
-                    engine::utils::TT_LOWERB_FLAG,
-                    best_move,
-                );
-            } else if !(quiescence || check_extension) {
-                update_tt(
-                    tt,
-                    game.board.zobrist_hash,
-                    max_eval,
-                    depth,
-                    engine::utils::TT_EXACT_FLAG,
-                    best_move,
-                );
+            // tt update logic — 3-way classification
+            if !(quiescence || check_extension) {
+                let flag = if cutoff {
+                    engine::utils::TT_LOWERB_FLAG          // fail-high: beta cutoff
+                } else if max_eval <= alpha_orig {
+                    engine::utils::TT_UPPERB_FLAG          // fail-low: never beat alpha
+                } else {
+                    engine::utils::TT_EXACT_FLAG           // landed strictly inside window
+                };
+                update_tt(tt, game.board.zobrist_hash, max_eval, depth, flag, best_move);
             }
 
             return (max_eval, nodes);
         } else {
             let mut beta = beta;
+            let beta_orig = beta;
             let mut min_eval = i16::MAX;
             let mut cutoff = false;
             let mut best_move = game.legal_moves[0];
@@ -277,27 +270,17 @@ pub fn minimax(
                 }
             }
 
-            // tt update logic
-            if cutoff && !(quiescence || check_extension) {
-                update_tt(
-                    tt,
-                    game.board.zobrist_hash,
-                    min_eval,
-                    depth,
-                    engine::utils::TT_UPPERB_FLAG,
-                    best_move,
-                );
-            } else if !(quiescence || check_extension) {
-                update_tt(
-                    tt,
-                    game.board.zobrist_hash,
-                    min_eval,
-                    depth,
-                    engine::utils::TT_EXACT_FLAG,
-                    best_move,
-                );
+            // tt update logic — 3-way classification
+            if !(quiescence || check_extension) {
+                let flag = if cutoff {
+                    engine::utils::TT_UPPERB_FLAG          // fail-low: alpha cutoff
+                } else if min_eval >= beta_orig {
+                    engine::utils::TT_LOWERB_FLAG          // fail-high: never dropped below beta
+                } else {
+                    engine::utils::TT_EXACT_FLAG           // landed strictly inside window
+                };
+                update_tt(tt, game.board.zobrist_hash, min_eval, depth, flag, best_move);
             }
-
             return (min_eval, nodes);
         }
     }
