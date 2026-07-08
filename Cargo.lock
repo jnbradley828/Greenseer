@@ -10,10 +10,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayvec"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+
+[[package]]
 name = "oxi_chess_lib"
 version = "0.1.0"
-source = "git+https://github.com/jnbradley828/oxi_chess_lib#481c5afa555a5a3f00ef419363388f0782995b9a"
+source = "git+https://github.com/jnbradley828/oxi_chess_lib#05867e86242670444be2cb92ec1b3d3803c12b88"
 dependencies = [
+ "arrayvec",
  "rustc-hash",
  "thousands",
 ]
