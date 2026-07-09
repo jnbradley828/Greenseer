@@ -320,6 +320,8 @@ pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
 const C: f32 = 15.0;
 
 const EARLY_QUEEN_FACTOR: i16 = 10;
+const OPEN_FILE_ROOK: i16 = 20;
+const SEMIOPEN_FILE_ROOK: i16 = 10;
 
 // returns objective positional modifications to score.
 pub fn positional_mods(
@@ -356,6 +358,34 @@ pub fn positional_mods(
         eg_modifier += bb_to_posmod(w_bbs[i], i as u8, true, true)
             + bb_to_posmod(b_bbs[i], i as u8, false, true);
     }
+
+    // give a bonus for rooks on open files
+    let mut w_rooks = game.board.rooks & game.board.white_pieces;
+    let mut b_rooks = game.board.rooks & game.board.black_pieces;
+
+    while w_rooks != 0 {
+        let sq: u64 = 1 << w_rooks.trailing_zeros();
+        let file_i = (oxi_chess_lib::utils::file_value(sq) - 1) as usize;
+
+        if ROOK_FILE_MASK[file_i] & game.board.pawns == 0 {
+            mg_modifier += OPEN_FILE_ROOK;
+        } else if ROOK_FILE_MASK[file_i] & (game.board.pawns & game.board.white_pieces) == 0 {
+            mg_modifier += SEMIOPEN_FILE_ROOK;
+        }
+        w_rooks &= w_rooks - 1;
+    }
+    while b_rooks != 0 {
+        let sq: u64 = 1 << b_rooks.trailing_zeros();
+        let file_i = (oxi_chess_lib::utils::file_value(sq) - 1) as usize;
+
+        if ROOK_FILE_MASK[file_i] & game.board.pawns == 0 {
+            mg_modifier -= OPEN_FILE_ROOK;
+        } else if ROOK_FILE_MASK[file_i] & (game.board.pawns & game.board.black_pieces) == 0 {
+            mg_modifier -= SEMIOPEN_FILE_ROOK;
+        }
+        b_rooks &= b_rooks - 1;
+    }
+
     let eg_weighted = ((MAX_MAJOR_PIECE_MATERIAL - major_piece_count) as f32
         / MAX_MAJOR_PIECE_MATERIAL as f32)
         * eg_modifier as f32;
@@ -444,6 +474,18 @@ pub fn unsigned_evaluate(game: &oxi_chess_lib::game::ChessGame, max_side: bool) 
         return -evaluate(game);
     }
 }
+
+// ROOK_FILE_MASK[0] = a file.
+const ROOK_FILE_MASK: [u64; 8] = [
+    0x0101010101010101,
+    0x0202020202020202,
+    0x0404040404040404,
+    0x0808080808080808,
+    0x1010101010101010,
+    0x2020202020202020,
+    0x4040404040404040,
+    0x8080808080808080,
+];
 
 #[cfg(test)]
 mod tests {
