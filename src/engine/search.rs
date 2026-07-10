@@ -1,9 +1,8 @@
 use oxi_chess_lib::{
     self,
     game::{
-        ChessGame, DrawReason,
-        GameResult::{self, BlackWins, WhiteWins},
-        WinReason,
+        ChessGame,
+        GameResult::{self},
     },
     rules, utils,
 };
@@ -185,7 +184,7 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                _ = game.make_move(movei, true, false);
+                _ = game.make_move(movei, true, true);
                 let (eval, child_nodes) = minimax(
                     game,
                     depth - 1,
@@ -200,7 +199,7 @@ pub fn minimax(
                     ply + 1,
                 );
                 nodes += child_nodes;
-                _ = game.unmake_move(true);
+                _ = game.unmake_move(false);
                 if eval > max_eval {
                     max_eval = eval;
                     best_move = movei;
@@ -248,7 +247,7 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                _ = game.make_move(movei, true, false);
+                _ = game.make_move(movei, true, true);
                 let (eval, child_nodes) = minimax(
                     game,
                     depth - 1,
@@ -263,7 +262,7 @@ pub fn minimax(
                     ply + 1,
                 );
                 nodes += child_nodes;
-                _ = game.unmake_move(true);
+                _ = game.unmake_move(false);
                 if eval < min_eval {
                     min_eval = eval;
                     best_move = movei;
