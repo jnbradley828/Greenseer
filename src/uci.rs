@@ -1,6 +1,7 @@
 use crate::engine::eval::iteratively_deepen;
 use crate::engine::search::{SearchState, TT};
 use oxi_chess_lib::game::ChessGame;
+use oxi_chess_lib::game::GameResult::InProgress;
 use oxi_chess_lib::moves::get_legal_moves;
 use oxi_chess_lib::utils::decode_to_uci;
 use std::cmp::min;
@@ -94,6 +95,10 @@ fn handle_position(parts: &[&str], game: &mut ChessGame) {
 }
 
 fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: &mut TT) {
+    if game.result != InProgress {
+        println!("bestmove 0000");
+        return;
+    }
     state.stop.store(false, Ordering::Relaxed);
     let depth = parts
         .iter()
@@ -206,7 +211,9 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
                 println!("bestmove {}", uci_move);
             });
         }
-        _ => {}
+        _ => {
+            println!("bestmove 0000")
+        }
     }
 }
 
