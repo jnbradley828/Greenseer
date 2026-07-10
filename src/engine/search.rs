@@ -185,7 +185,7 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                _ = game.make_move(movei);
+                _ = game.make_move(movei, true, false);
                 let (eval, child_nodes) = minimax(
                     game,
                     depth - 1,
@@ -200,7 +200,7 @@ pub fn minimax(
                     ply + 1,
                 );
                 nodes += child_nodes;
-                _ = game.unmake_move();
+                _ = game.unmake_move(true);
                 if eval > max_eval {
                     max_eval = eval;
                     best_move = movei;
@@ -217,13 +217,20 @@ pub fn minimax(
             // tt update logic — 3-way classification
             if !(quiescence || check_extension) {
                 let flag = if cutoff {
-                    engine::utils::TT_LOWERB_FLAG          // fail-high: beta cutoff
+                    engine::utils::TT_LOWERB_FLAG // fail-high: beta cutoff
                 } else if max_eval <= alpha_orig {
-                    engine::utils::TT_UPPERB_FLAG          // fail-low: never beat alpha
+                    engine::utils::TT_UPPERB_FLAG // fail-low: never beat alpha
                 } else {
-                    engine::utils::TT_EXACT_FLAG           // landed strictly inside window
+                    engine::utils::TT_EXACT_FLAG // landed strictly inside window
                 };
-                update_tt(tt, game.board.zobrist_hash, max_eval, depth, flag, best_move);
+                update_tt(
+                    tt,
+                    game.board.zobrist_hash,
+                    max_eval,
+                    depth,
+                    flag,
+                    best_move,
+                );
             }
 
             return (max_eval, nodes);
@@ -241,7 +248,7 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                _ = game.make_move(movei);
+                _ = game.make_move(movei, true, false);
                 let (eval, child_nodes) = minimax(
                     game,
                     depth - 1,
@@ -256,7 +263,7 @@ pub fn minimax(
                     ply + 1,
                 );
                 nodes += child_nodes;
-                _ = game.unmake_move();
+                _ = game.unmake_move(true);
                 if eval < min_eval {
                     min_eval = eval;
                     best_move = movei;
@@ -273,13 +280,20 @@ pub fn minimax(
             // tt update logic — 3-way classification
             if !(quiescence || check_extension) {
                 let flag = if cutoff {
-                    engine::utils::TT_UPPERB_FLAG          // fail-low: alpha cutoff
+                    engine::utils::TT_UPPERB_FLAG // fail-low: alpha cutoff
                 } else if min_eval >= beta_orig {
-                    engine::utils::TT_LOWERB_FLAG          // fail-high: never dropped below beta
+                    engine::utils::TT_LOWERB_FLAG // fail-high: never dropped below beta
                 } else {
-                    engine::utils::TT_EXACT_FLAG           // landed strictly inside window
+                    engine::utils::TT_EXACT_FLAG // landed strictly inside window
                 };
-                update_tt(tt, game.board.zobrist_hash, min_eval, depth, flag, best_move);
+                update_tt(
+                    tt,
+                    game.board.zobrist_hash,
+                    min_eval,
+                    depth,
+                    flag,
+                    best_move,
+                );
             }
             return (min_eval, nodes);
         }

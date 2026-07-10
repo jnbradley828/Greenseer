@@ -1,6 +1,7 @@
 use crate::engine::eval::iteratively_deepen;
 use crate::engine::search::{SearchState, TT};
 use oxi_chess_lib::game::ChessGame;
+use oxi_chess_lib::moves::get_legal_moves;
 use oxi_chess_lib::utils::decode_to_uci;
 use std::cmp::min;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -87,7 +88,7 @@ fn handle_position(parts: &[&str], game: &mut ChessGame) {
 
     if let Some(start) = moves_idx {
         for uci_move in &parts[start..] {
-            let _ = game.make_move_from_uci(uci_move);
+            let _ = game.make_move_from_uci(uci_move, true, false);
         }
     }
 }

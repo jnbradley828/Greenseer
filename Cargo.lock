@@ -18,7 +18,7 @@ checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 [[package]]
 name = "oxi_chess_lib"
 version = "0.1.0"
-source = "git+https://github.com/jnbradley828/oxi_chess_lib#05867e86242670444be2cb92ec1b3d3803c12b88"
+source = "git+https://github.com/jnbradley828/oxi_chess_lib#67a2e3f221e5dba381d8174f5fc6f27122202590"
 dependencies = [
  "arrayvec",
  "rustc-hash",

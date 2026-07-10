@@ -17,7 +17,7 @@ pub fn best_move(
     let mut best_move = game.legal_moves[0];
     const RUNNER_UPS_MAX: usize = 2;
     let mut runner_ups = VecDeque::with_capacity(RUNNER_UPS_MAX);
-    _ = game.make_move(game.legal_moves[0]);
+    _ = game.make_move(game.legal_moves[0], true, false);
     let mut nodes: u64 = 0;
     let (mut alpha, m_nodes) = minimax(
         game,
@@ -33,7 +33,7 @@ pub fn best_move(
         1,
     );
     nodes += m_nodes;
-    _ = game.unmake_move();
+    _ = game.unmake_move(true);
 
     let remaining_moves: Vec<u16> = game.legal_moves[1..].to_vec();
     for movei in remaining_moves {
@@ -45,7 +45,7 @@ pub fn best_move(
                 runner_ups,
             );
         }
-        _ = game.make_move(movei);
+        _ = game.make_move(movei, true, false);
         let (eval, m_nodes) = minimax(
             game,
             depth - 1,
@@ -60,7 +60,7 @@ pub fn best_move(
             1,
         );
         nodes += m_nodes;
-        _ = game.unmake_move();
+        _ = game.unmake_move(true);
         if eval > alpha {
             if runner_ups.len() == RUNNER_UPS_MAX {
                 runner_ups.pop_front();
