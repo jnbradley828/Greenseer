@@ -4,6 +4,7 @@ use oxi_chess_lib::{
         ChessGame,
         GameResult::{self},
     },
+    moves::get_legal_moves,
     rules, utils,
 };
 
@@ -88,7 +89,6 @@ pub fn minimax(
     if let Some(tt_entry) = retrieve_tt_or_none(tt, game.board.zobrist_hash)
         && !skip_tt
     {
-        // case to use: tt_depth >= search depth
         // if flag is exact: return tt score
         // if flag is lower bound & tt score >= beta: return tt score (it will trigger a cutoff at parent node)
         // if flag is upper bound & tt score <= alpha: return tt score (it will trigger a cutoff at parent node)
@@ -109,7 +109,7 @@ pub fn minimax(
             }
         }
         reorder_moves(game, &mut vec![tt_entry.4]);
-    } else if !quiescence && !check_extension {
+    } else if depth != 0 && (!quiescence && !check_extension) {
         // don't reorder on quiescence search because we are already only checking captures & checks.
         // to do: test if elo improves if we allow check extension reordering. is the overhead worth reordering a small list of moves?
         reorder_moves(game, &mut vec![]);
@@ -118,6 +118,7 @@ pub fn minimax(
     if depth == 0 {
         // check extension: if the position is check: search depth 1.
         if rules::is_check(&game.board, game.board.side_to_move) {
+            game.legal_moves = get_legal_moves(&mut game.board);
             return minimax(
                 game,
                 1,
@@ -146,6 +147,7 @@ pub fn minimax(
             if qdepth == 0 {
                 return (stand_pat_eval, nodes);
             } else {
+                game.legal_moves = get_legal_moves(&mut game.board);
                 let (q_eval, q_nodes) = minimax(
                     game,
                     1,
@@ -184,7 +186,8 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                _ = game.make_move(movei, true, true);
+                let gen_legal_moves = if depth == 1 { false } else { true };
+                _ = game.make_move(movei, gen_legal_moves, true);
                 let (eval, child_nodes) = minimax(
                     game,
                     depth - 1,
@@ -247,7 +250,8 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                _ = game.make_move(movei, true, true);
+                let gen_legal_moves = if depth == 1 { false } else { true };
+                _ = game.make_move(movei, gen_legal_moves, true);
                 let (eval, child_nodes) = minimax(
                     game,
                     depth - 1,

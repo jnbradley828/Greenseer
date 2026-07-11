@@ -96,7 +96,8 @@ pub fn iteratively_deepen(
             return state.best_move.load(Ordering::Relaxed);
         } else {
             reorder_moves(game, &mut moves_of_interest);
-            let (best_move, score, dnodes, runner_ups) = best_move(game, d, Arc::clone(&state), tt);
+            let (best_move, score, dnodes, runner_ups) =
+                best_move(game, d, Arc::clone(&state), tt);
             state.best_move.store(best_move, Ordering::Relaxed);
             moves_of_interest = vec![best_move];
             moves_of_interest.extend(runner_ups.iter().rev());
