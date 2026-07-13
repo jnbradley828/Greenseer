@@ -21,7 +21,7 @@ caffeinate -s -i -m fastchess \
     -concurrency 1 \
     -log engine=false \
     -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/EigenmannEndgames.epd format=epd order=random -repeat \
-    | grep --line-buffered -v "Warning" | tee /dev/tty | grep -v "Started game" > benches/results/vs_main_endgames/$(date +%Y%m%d_%H%M%S).txt
+    | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/results/vs_main_endgames/$(date +%Y%m%d_%H%M%S).txt
 
 # cleanup
 rm -rf /tmp/Greenseer_main
