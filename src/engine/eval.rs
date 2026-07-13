@@ -1,8 +1,6 @@
 use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
-use oxi_chess_lib::game::GameResult;
-use oxi_chess_lib::moves::get_legal_moves;
-use oxi_chess_lib::utils::{self, decode_to_uci};
-use oxi_chess_lib::{self, game};
+use oxi_chess_lib;
+use oxi_chess_lib::utils::decode_to_uci;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -14,6 +12,7 @@ pub fn best_move(
     depth: u8,
     state: Arc<SearchState>,
     tt: &mut TT,
+    age: u8,
 ) -> (u16, i16, u64, VecDeque<u16>) {
     let mut best_move = game.legal_moves[0];
     const RUNNER_UPS_MAX: usize = 2;
@@ -33,6 +32,7 @@ pub fn best_move(
         search::MAX_QDEPTH,
         tt,
         1,
+        age,
     );
     nodes += m_nodes;
     _ = game.unmake_move(false);
@@ -60,6 +60,7 @@ pub fn best_move(
             search::MAX_QDEPTH,
             tt,
             1,
+            age,
         );
         nodes += m_nodes;
         _ = game.unmake_move(false);
@@ -85,6 +86,7 @@ pub fn iteratively_deepen(
     println!("info string start eval {}", evaluate(game));
     let start_time = Instant::now();
     let mut nodes = 0;
+    let age = (game.moves.len() / 2) as u8; // age for transposition table entries
     // stores first move in the list just in case "stop" is called immediately.
     state
         .best_move
@@ -97,7 +99,7 @@ pub fn iteratively_deepen(
         } else {
             reorder_moves(game, &mut moves_of_interest);
             let (best_move, score, dnodes, runner_ups) =
-                best_move(game, d, Arc::clone(&state), tt);
+                best_move(game, d, Arc::clone(&state), tt, age);
             state.best_move.store(best_move, Ordering::Relaxed);
             moves_of_interest = vec![best_move];
             moves_of_interest.extend(runner_ups.iter().rev());
@@ -503,7 +505,7 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt).0,
+            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
         )
         .unwrap();
         assert_eq!(best_move_uci, "h7h8q".to_string());
@@ -515,7 +517,7 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt).0,
+            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
         )
         .unwrap();
         assert!(best_move_uci == "b6b7".to_string() || best_move_uci == "b6a7".to_string());
@@ -527,7 +529,7 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt).0,
+            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
         )
         .unwrap();
         assert_eq!(best_move_uci, "d1d5".to_string());
@@ -539,7 +541,7 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt).0,
+            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
         )
         .unwrap();
         assert_eq!(best_move_uci, "d8d1".to_string());

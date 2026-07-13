@@ -62,6 +62,7 @@ pub fn minimax(
     qdepth: u8,
     tt: &mut TT,
     ply: u8,
+    age: u8,
 ) -> (i16, u64) {
     let mut nodes: u64 = 1;
     if game.result != GameResult::InProgress {
@@ -131,6 +132,7 @@ pub fn minimax(
                 qdepth,
                 tt,
                 ply + 1,
+                age,
             );
         } else {
             // quiescence search: continue search until all captures are complete.
@@ -160,6 +162,7 @@ pub fn minimax(
                     qdepth - 1,
                     tt,
                     ply + 1,
+                    age,
                 );
                 nodes += q_nodes;
                 if max_side == game.board.side_to_move {
@@ -200,6 +203,7 @@ pub fn minimax(
                     qdepth,
                     tt,
                     ply + 1,
+                    age,
                 );
                 nodes += child_nodes;
                 _ = game.unmake_move(false);
@@ -232,6 +236,7 @@ pub fn minimax(
                     depth,
                     flag,
                     best_move,
+                    age,
                 );
             }
 
@@ -264,6 +269,7 @@ pub fn minimax(
                     qdepth,
                     tt,
                     ply + 1,
+                    age,
                 );
                 nodes += child_nodes;
                 _ = game.unmake_move(false);
@@ -296,6 +302,7 @@ pub fn minimax(
                     depth,
                     flag,
                     best_move,
+                    age,
                 );
             }
             return (min_eval, nodes);
