@@ -10,6 +10,7 @@ git clone --branch main --depth 1 git@github.com:jnbradley828/Greenseer.git /tmp
 cargo build --release --manifest-path /tmp/Greenseer_main/Cargo.toml
 
 mkdir -p benches/results/vs_main_middlegames
+mkdir -p benches/tournament_configs
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -19,7 +20,7 @@ caffeinate -s -i -m fastchess \
     -each proto=uci tc=10+0.1 \
     -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05 \
     -rounds 1000 \
-    -config outname=/dev/null \
+    -config outname=benches/tournament_configs/${TIMESTAMP}.json \
     -concurrency 1 \
     -log engine=false \
     -pgnout file=benches/results/vs_main_middlegames/${TIMESTAMP}.pgn notation=uci nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
