@@ -13,10 +13,33 @@ pub const TT_EXACT_FLAG: u8 = 0;
 pub const TT_LOWERB_FLAG: u8 = 1;
 pub const TT_UPPERB_FLAG: u8 = 2;
 const TT_AGE_FACTOR: i16 = 2;
+pub const MATE_THRESHOLD: i16 = 9000;
 
 // higher is more relevant. depth alone when age matches (age_diff == 0); penalized per move of staleness otherwise.
 pub fn relevance_score(depth: u8, entry_age: u8, current_age: u8) -> i16 {
     depth as i16 - (current_age.wrapping_sub(entry_age) as i16) * TT_AGE_FACTOR
+}
+
+// converts a root-relative mate score into a ply-independent (from this node) score before storing in the tt.
+pub fn to_tt_score(score: i16, ply: u8) -> i16 {
+    if score > MATE_THRESHOLD {
+        score + ply as i16
+    } else if score < -MATE_THRESHOLD {
+        score - ply as i16
+    } else {
+        score
+    }
+}
+
+// converts a ply-independent (from this node) mate score retrieved from the tt back into a root-relative score.
+pub fn from_tt_score(score: i16, ply: u8) -> i16 {
+    if score > MATE_THRESHOLD {
+        score - ply as i16
+    } else if score < -MATE_THRESHOLD {
+        score + ply as i16
+    } else {
+        score
+    }
 }
 
 pub fn encode_tt_entry(

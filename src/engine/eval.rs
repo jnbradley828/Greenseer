@@ -112,10 +112,6 @@ pub fn iteratively_deepen(
                     "info depth {d} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
                 );
             }
-            // return early if forced mate is found.
-            if score > 9000 || score < -9000 {
-                return state.best_move.load(Ordering::Relaxed);
-            }
         }
     }
     return state.best_move.load(Ordering::Relaxed);

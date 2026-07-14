@@ -8,7 +8,7 @@ use oxi_chess_lib::{
     rules, utils,
 };
 
-use crate::engine::utils::{retrieve_tt_or_none, update_tt};
+use crate::engine::utils::{from_tt_score, retrieve_tt_or_none, to_tt_score, update_tt};
 use crate::engine::{self, eval::unsigned_evaluate};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
@@ -94,16 +94,17 @@ pub fn minimax(
         // if flag is lower bound & tt score >= beta: return tt score (it will trigger a cutoff at parent node)
         // if flag is upper bound & tt score <= alpha: return tt score (it will trigger a cutoff at parent node)
         if tt_entry.2 >= depth {
+            let tt_score = from_tt_score(tt_entry.1, ply);
             match tt_entry.3 {
-                0 => return (tt_entry.1, nodes),
+                0 => return (tt_score, nodes),
                 1 => {
-                    if tt_entry.1 >= beta {
-                        return (tt_entry.1, nodes);
+                    if tt_score >= beta {
+                        return (tt_score, nodes);
                     }
                 }
                 2 => {
-                    if tt_entry.1 <= alpha {
-                        return (tt_entry.1, nodes);
+                    if tt_score <= alpha {
+                        return (tt_score, nodes);
                     }
                 }
                 _ => {}
@@ -121,18 +122,7 @@ pub fn minimax(
         if rules::is_check(&game.board, game.board.side_to_move) {
             game.legal_moves = get_legal_moves(&mut game.board);
             return minimax(
-                game,
-                1,
-                max_side,
-                alpha,
-                beta,
-                state,
-                false,
-                true,
-                qdepth,
-                tt,
-                ply + 1,
-                age,
+                game, 1, max_side, alpha, beta, state, false, true, qdepth, tt, ply, age,
             );
         } else {
             // quiescence search: continue search until all captures are complete.
@@ -161,7 +151,7 @@ pub fn minimax(
                     false,
                     qdepth - 1,
                     tt,
-                    ply + 1,
+                    ply,
                     age,
                 );
                 nodes += q_nodes;
@@ -232,7 +222,7 @@ pub fn minimax(
                 update_tt(
                     tt,
                     game.board.zobrist_hash,
-                    max_eval,
+                    to_tt_score(max_eval, ply),
                     depth,
                     flag,
                     best_move,
@@ -298,7 +288,7 @@ pub fn minimax(
                 update_tt(
                     tt,
                     game.board.zobrist_hash,
-                    min_eval,
+                    to_tt_score(min_eval, ply),
                     depth,
                     flag,
                     best_move,
