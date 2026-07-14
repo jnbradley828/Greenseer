@@ -19,7 +19,7 @@ caffeinate -s -i -m fastchess \
     -engine cmd=/tmp/Greenseer_main/target/release/Greenseer name=main \
     -each proto=uci tc=1+0.01 \
     -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05 \
-    -rounds 250 \
+    -rounds 100000 \
     -config outname=benches/tournament_configs/${TIMESTAMP}_quick.json \
     -concurrency 1 \
     -log engine=false \
