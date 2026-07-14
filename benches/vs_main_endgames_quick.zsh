@@ -11,6 +11,8 @@ cargo build --release --manifest-path /tmp/Greenseer_main/Cargo.toml
 
 mkdir -p benches/results/vs_main_endgames
 
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
 caffeinate -s -i -m fastchess \
     -engine cmd=./target/release/Greenseer name=dev \
     -engine cmd=/tmp/Greenseer_main/target/release/Greenseer name=main \
@@ -20,8 +22,9 @@ caffeinate -s -i -m fastchess \
     -config outname=/dev/null \
     -concurrency 1 \
     -log engine=false \
+    -pgnout file=benches/results/vs_main_endgames/${TIMESTAMP}_quick.pgn notation=uci nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
     -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/EigenmannEndgames.epd format=epd order=random -repeat \
-    | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/results/vs_main_endgames/$(date +%Y%m%d_%H%M%S)_quick.txt
+    | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/results/vs_main_endgames/${TIMESTAMP}_quick.txt
 
 # cleanup
 rm -rf /tmp/Greenseer_main
