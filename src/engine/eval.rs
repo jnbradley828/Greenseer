@@ -1,5 +1,6 @@
 use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
 use oxi_chess_lib;
+use oxi_chess_lib::moves::get_legal_moves;
 use oxi_chess_lib::utils::decode_to_uci;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -7,6 +8,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 // returns (best move encoded as u16, score of said move, nodes searched, runner_ups)
+// DEPRECATED: MOVED LOGIC TO minimax() IN search.rs
 pub fn best_move(
     game: &mut oxi_chess_lib::game::ChessGame,
     depth: u8,
@@ -20,7 +22,7 @@ pub fn best_move(
     let mut runner_ups = VecDeque::with_capacity(RUNNER_UPS_MAX);
     _ = game.make_move(legal_moves[0], true, true);
     let mut nodes: u64 = 0;
-    let (mut alpha, m_nodes) = minimax(
+    let (mut alpha, _, m_nodes) = minimax(
         game,
         depth - 1,
         !game.board.side_to_move,
@@ -48,7 +50,7 @@ pub fn best_move(
             );
         }
         _ = game.make_move(movei, true, true);
-        let (eval, m_nodes) = minimax(
+        let (eval, _, m_nodes) = minimax(
             game,
             depth - 1,
             !game.board.side_to_move,
@@ -92,26 +94,37 @@ pub fn iteratively_deepen(
         .best_move
         .store(game.legal_moves[0], Ordering::Relaxed);
 
-    let mut moves_of_interest: Vec<u16> = vec![state.best_move.load(Ordering::Relaxed)];
     for d in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
             return state.best_move.load(Ordering::Relaxed);
         } else {
-            reorder_moves(game, &mut moves_of_interest);
-            let (best_move, score, dnodes, runner_ups) =
-                best_move(game, d, Arc::clone(&state), tt, age);
-            state.best_move.store(best_move, Ordering::Relaxed);
-            moves_of_interest = vec![best_move];
-            moves_of_interest.extend(runner_ups.iter().rev());
+            let legal_moves = game.legal_moves.clone();
+            let (score, best_move, dnodes) = minimax(
+                game,
+                d,
+                game.board.side_to_move,
+                i16::MIN,
+                i16::MAX,
+                Arc::clone(&state),
+                false,
+                false,
+                search::MAX_QDEPTH,
+                tt,
+                0,
+                age,
+            );
+            // let (best_move, score, dnodes, runner_ups) = best_move(game, d, Arc::clone(&state), tt, age);
             nodes += dnodes;
             let best_uci = decode_to_uci(best_move).unwrap();
             if !state.stop.load(Ordering::Relaxed) {
+                state.best_move.store(best_move, Ordering::Relaxed);
                 let elapsed = start_time.elapsed().as_millis().max(1);
                 let nps = ((nodes * 1000) as u128) / elapsed;
                 println!(
                     "info depth {d} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
                 );
             }
+            game.legal_moves = legal_moves; // restore legal_moves
         }
     }
     return state.best_move.load(Ordering::Relaxed);

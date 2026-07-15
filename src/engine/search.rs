@@ -4,8 +4,9 @@ use oxi_chess_lib::{
         ChessGame,
         GameResult::{self},
     },
-    moves::get_legal_moves,
+    moves::{get_legal_moves, square_attacked},
     rules, utils,
+    utils::decode_move,
 };
 
 use crate::engine::utils::{from_tt_score, retrieve_tt_or_none, to_tt_score, update_tt};
@@ -63,19 +64,19 @@ pub fn minimax(
     tt: &mut TT,
     ply: u8,
     age: u8,
-) -> (i16, u64) {
+) -> (i16, u16, u64) {
     let mut nodes: u64 = 1;
     if game.result != GameResult::InProgress {
         // if game is over in this position
         if !matches!(game.result, GameResult::Draw(_)) {
             // if checkmate
             if max_side != game.board.side_to_move {
-                return (10000 - ply as i16, nodes);
+                return (10000 - ply as i16, 0, nodes);
             } else {
-                return (-10000 + ply as i16, nodes);
+                return (-10000 + ply as i16, 0, nodes);
             }
         } else {
-            return (0, nodes);
+            return (0, 0, nodes);
         }
     }
 
@@ -96,15 +97,15 @@ pub fn minimax(
         if tt_entry.2 >= depth {
             let tt_score = from_tt_score(tt_entry.1, ply);
             match tt_entry.3 {
-                0 => return (tt_score, nodes),
+                0 => return (tt_score, tt_entry.4, nodes),
                 1 => {
                     if tt_score >= beta {
-                        return (tt_score, nodes);
+                        return (tt_score, tt_entry.4, nodes);
                     }
                 }
                 2 => {
                     if tt_score <= alpha {
-                        return (tt_score, nodes);
+                        return (tt_score, tt_entry.4, nodes);
                     }
                 }
                 _ => {}
@@ -129,18 +130,18 @@ pub fn minimax(
             let stand_pat_eval = (unsigned_evaluate(game, max_side), nodes).0;
             if max_side == game.board.side_to_move {
                 if stand_pat_eval >= beta {
-                    return (stand_pat_eval, nodes);
+                    return (stand_pat_eval, 0, nodes);
                 }
             } else {
                 if stand_pat_eval <= alpha {
-                    return (stand_pat_eval, nodes);
+                    return (stand_pat_eval, 0, nodes);
                 }
             }
             if qdepth == 0 {
-                return (stand_pat_eval, nodes);
+                return (stand_pat_eval, 0, nodes);
             } else {
                 game.legal_moves = get_legal_moves(&mut game.board);
-                let (q_eval, q_nodes) = minimax(
+                let (q_eval, mv, q_nodes) = minimax(
                     game,
                     1,
                     max_side,
@@ -157,10 +158,18 @@ pub fn minimax(
                 nodes += q_nodes;
                 if max_side == game.board.side_to_move {
                     // maximizing node: stand_pat is a floor
-                    return (q_eval.max(stand_pat_eval), nodes);
+                    if q_eval.max(stand_pat_eval) == stand_pat_eval {
+                        return (stand_pat_eval, 0, nodes);
+                    } else {
+                        return (q_eval, mv, nodes);
+                    }
                 } else {
                     // minimizing node: stand_pat is a ceiling
-                    return (q_eval.min(stand_pat_eval), nodes);
+                    if q_eval.min(stand_pat_eval) == stand_pat_eval {
+                        return (stand_pat_eval, 0, nodes);
+                    } else {
+                        return (q_eval, mv, nodes);
+                    }
                 }
             }
         }
@@ -173,7 +182,7 @@ pub fn minimax(
             let mut best_move = game.legal_moves[0];
             for movei in game.legal_moves.clone() {
                 if state.stop.load(Ordering::Relaxed) {
-                    return (0, nodes);
+                    return (0, best_move, nodes);
                 }
                 if quiescence && ![1, 3, 8, 9, 10, 11].contains(&utils::decode_move(movei)[2]) {
                     // if quiescence only search: skip non captures.
@@ -181,7 +190,7 @@ pub fn minimax(
                 }
                 let gen_legal_moves = if depth == 1 { false } else { true };
                 _ = game.make_move(movei, gen_legal_moves, true);
-                let (eval, child_nodes) = minimax(
+                let (eval, _, child_nodes) = minimax(
                     game,
                     depth - 1,
                     max_side,
@@ -230,7 +239,7 @@ pub fn minimax(
                 );
             }
 
-            return (max_eval, nodes);
+            return (max_eval, best_move, nodes);
         } else {
             let mut beta = beta;
             let beta_orig = beta;
@@ -239,7 +248,7 @@ pub fn minimax(
             let mut best_move = game.legal_moves[0];
             for movei in game.legal_moves.clone() {
                 if state.stop.load(Ordering::Relaxed) {
-                    return (0, nodes);
+                    return (0, best_move, nodes);
                 }
                 if quiescence && ![1, 3, 8, 9, 10, 11].contains(&utils::decode_move(movei)[2]) {
                     // if quiescence only search: skip non captures.
@@ -247,7 +256,7 @@ pub fn minimax(
                 }
                 let gen_legal_moves = if depth == 1 { false } else { true };
                 _ = game.make_move(movei, gen_legal_moves, true);
-                let (eval, child_nodes) = minimax(
+                let (eval, _, child_nodes) = minimax(
                     game,
                     depth - 1,
                     max_side,
@@ -295,7 +304,7 @@ pub fn minimax(
                     age,
                 );
             }
-            return (min_eval, nodes);
+            return (min_eval, best_move, nodes);
         }
     }
 }
@@ -308,9 +317,20 @@ pub fn reorder_moves(game: &mut ChessGame, promising_moves: &mut Vec<u16>) -> ()
         if promising_moves.contains(&mv) {
             continue;
         } else {
-            if oxi_chess_lib::rules::is_check(&game.board, game.board.side_to_move) {
-                // to do: create function in oxi_chess_lib::moves to find check statically (without making/unmaking moves).
-                continue;
+            let king_sq: u64 = if game.board.side_to_move {
+                game.board.kings & game.board.black_pieces
+            } else {
+                game.board.kings & game.board.white_pieces
+            };
+            let [from_sqi, to_sqi, _] = decode_move(mv);
+            if square_attacked(
+                game.board.side_to_move,
+                king_sq,
+                &game.board,
+                Some(1 << from_sqi),
+                Some(1 << to_sqi),
+            ) {
+                checks.push(mv)
             } else if [1, 3, 8, 9, 10, 11]
                 .contains(&(oxi_chess_lib::utils::decode_move(mv)[2] as i32))
             {
