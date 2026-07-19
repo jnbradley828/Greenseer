@@ -27,15 +27,17 @@ impl SearchState {
     }
 }
 
+// each slot is (full zobrist key, packed data) - full key stored to eliminate
+// false-positive verification hits from a truncated key tag.
 #[derive(Clone)]
 pub struct TT {
-    pub entries: Arc<Vec<AtomicU64>>,
+    pub entries: Arc<Vec<(AtomicU64, AtomicU64)>>,
     pub size_mb: usize,
 }
 impl TT {
     pub fn new(size_mb: usize) -> Self {
-        let no_entries = (size_mb * (2 as usize).pow(20)) / 8;
-        let entry_vec = std::iter::repeat_with(|| AtomicU64::new(0))
+        let no_entries = (size_mb * (2 as usize).pow(20)) / 16;
+        let entry_vec = std::iter::repeat_with(|| (AtomicU64::new(0), AtomicU64::new(0)))
             .take(no_entries)
             .collect();
         Self {

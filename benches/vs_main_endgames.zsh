@@ -10,6 +10,7 @@ git clone --branch main --depth 1 git@github.com:jnbradley828/Greenseer.git /tmp
 cargo build --release --manifest-path /tmp/Greenseer_main/Cargo.toml
 
 mkdir -p benches/results/vs_main_endgames
+mkdir -p benches/results/pgn/vs_main_endgames
 mkdir -p benches/tournament_configs
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -21,10 +22,10 @@ caffeinate -s -i -m fastchess \
     -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05 \
     -rounds 100000 \
     -config outname=benches/tournament_configs/${TIMESTAMP}.json \
-    -concurrency 1 \
+    -concurrency 2 \
     -log engine=false \
-    -pgnout file=benches/results/vs_main_endgames/${TIMESTAMP}.pgn notation=uci nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
-    -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/EigenmannEndgames.epd format=epd order=random -repeat \
+    -pgnout file=benches/results/pgn/vs_main_endgames/${TIMESTAMP}.pgn notation=uci nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
+    -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/test_suites/endgames.epd format=epd order=random -repeat \
     | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/results/vs_main_endgames/${TIMESTAMP}.txt
 
 # cleanup
