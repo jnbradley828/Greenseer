@@ -2,11 +2,16 @@ use crate::engine::eval_heuristics::{
     EARLY_QUEEN_FACTOR, EG_BISHOP_MOD, EG_BISHOP_PAIR_BONUS, EG_KING_MOD, EG_KNIGHT_MOD,
     EG_PAWN_MOD, EG_QUEEN_MOD, EG_ROOK_MOD, MAX_MAJOR_PIECE_MATERIAL, MG_BISHOP_MOD,
     MG_BISHOP_PAIR_BONUS, MG_KING_MOD, MG_KNIGHT_MOD, MG_PAWN_MOD, MG_QUEEN_MOD, MG_ROOK_MOD,
-    OPEN_FILE_ROOK, PIECE_VALUES, SEMIOPEN_FILE_ROOK, TEMPO_BONUS,
+    MOBILITY_BONUS, OPEN_FILE_ROOK, PIECE_VALUES, SEMIOPEN_FILE_ROOK, TEMPO_BONUS,
 };
 use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
 use oxi_chess_lib;
-use oxi_chess_lib::moves::get_legal_moves;
+use oxi_chess_lib::board::ChessBoard;
+use oxi_chess_lib::magic_tables::ROOK_ATTACKS;
+use oxi_chess_lib::moves::{
+    get_bishop_attacks, get_legal_moves, get_queen_attacks, get_rook_attacks, knight_attacks,
+    pawn_attacks,
+};
 use oxi_chess_lib::utils::decode_to_uci;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -220,12 +225,14 @@ pub fn positional_mods(
 
     let mut mg_modifier: i16 = 0;
     let mut eg_modifier: i16 = 0;
+    let mut mobility_score: i16 = 0;
 
     for i in 0..6 {
-        mg_modifier += bb_to_posmod(w_bbs[i], i as u8, true, false)
-            + bb_to_posmod(b_bbs[i], i as u8, false, false);
-        eg_modifier += bb_to_posmod(w_bbs[i], i as u8, true, true)
-            + bb_to_posmod(b_bbs[i], i as u8, false, true);
+        let (w_mg, w_eg, w_ms) = bb_to_posmod(w_bbs[i], i as u8, true, &game.board);
+        let (b_mg, b_eg, b_ms) = bb_to_posmod(b_bbs[i], i as u8, false, &game.board);
+        mg_modifier += w_mg + b_mg;
+        eg_modifier += w_eg + b_eg;
+        mobility_score += w_ms + b_ms;
     }
 
     // give a bonus for rooks on open files
@@ -297,7 +304,7 @@ pub fn positional_mods(
         }
     }
 
-    let mut result = (mg_weighted + eg_weighted).round() as i16;
+    let mut result = (mg_weighted + eg_weighted).round() as i16 + mobility_score;
     result += trading_incentive;
     result += early_queen_mod;
     if game.board.side_to_move {
@@ -310,47 +317,86 @@ pub fn positional_mods(
 }
 
 // piece type 0-5 = pawn, knight, bishop, rook, queen, king
-// returns objective positional score modifications
-pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, endgame: bool) -> i16 {
-    let mod_mask: &[i8; 64];
-    let mut modifier: i16 = 0;
-    if endgame {
-        match piece_type {
-            0 => mod_mask = &EG_PAWN_MOD,
-            1 => mod_mask = &EG_KNIGHT_MOD,
-            2 => mod_mask = &EG_BISHOP_MOD,
-            3 => mod_mask = &EG_ROOK_MOD,
-            4 => mod_mask = &EG_QUEEN_MOD,
-            5 => mod_mask = &EG_KING_MOD,
-            _ => panic!("unexpected piece type value: {}", piece_type),
+// returns (mg, eg, mobility_score) objective positional score modifications in a single pass
+pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) -> (i16, i16, i16) {
+    let mg_mask: &[i8; 64];
+    let eg_mask: &[i8; 64];
+    let mobility_factor: i16;
+    match piece_type {
+        0 => {
+            mg_mask = &MG_PAWN_MOD;
+            eg_mask = &EG_PAWN_MOD;
+            mobility_factor = 0;
         }
-    } else {
-        match piece_type {
-            0 => mod_mask = &MG_PAWN_MOD,
-            1 => mod_mask = &MG_KNIGHT_MOD,
-            2 => mod_mask = &MG_BISHOP_MOD,
-            3 => mod_mask = &MG_ROOK_MOD,
-            4 => mod_mask = &MG_QUEEN_MOD,
-            5 => mod_mask = &MG_KING_MOD,
-            _ => panic!("unexpected piece type value: {}", piece_type),
+        1 => {
+            mg_mask = &MG_KNIGHT_MOD;
+            eg_mask = &EG_KNIGHT_MOD;
+            mobility_factor = MOBILITY_BONUS[0];
         }
+        2 => {
+            mg_mask = &MG_BISHOP_MOD;
+            eg_mask = &EG_BISHOP_MOD;
+            mobility_factor = MOBILITY_BONUS[1];
+        }
+        3 => {
+            mg_mask = &MG_ROOK_MOD;
+            eg_mask = &EG_ROOK_MOD;
+            mobility_factor = MOBILITY_BONUS[2];
+        }
+        4 => {
+            mg_mask = &MG_QUEEN_MOD;
+            eg_mask = &EG_QUEEN_MOD;
+            mobility_factor = MOBILITY_BONUS[3];
+        }
+        5 => {
+            mg_mask = &MG_KING_MOD;
+            eg_mask = &EG_KING_MOD;
+            mobility_factor = 0;
+        }
+        _ => panic!("unexpected piece type value: {}", piece_type),
     }
+
+    let mut mg_modifier: i16 = 0;
+    let mut eg_modifier: i16 = 0;
+    let mut mobility_score: i16 = 0;
     let mut mbb: u64 = bb;
     if to_move {
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
-            modifier += mod_mask[i] as i16;
+            mg_modifier += mg_mask[i] as i16;
+            eg_modifier += eg_mask[i] as i16;
+            if mobility_factor != 0 {
+                let num_attacks: i16 = match piece_type {
+                    1 => knight_attacks(true, 1 << i, board).count_ones() as i16,
+                    2 => get_bishop_attacks(board, true, i as u8).count_ones() as i16,
+                    3 => get_rook_attacks(board, true, i as u8).count_ones() as i16,
+                    4 => get_queen_attacks(board, true, i as u8).count_ones() as i16,
+                    _ => 0,
+                };
+                mobility_score += num_attacks * mobility_factor;
+            }
         }
     } else {
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
-            modifier -= mod_mask[63 - i] as i16;
+            mg_modifier -= mg_mask[63 - i] as i16;
+            eg_modifier -= eg_mask[63 - i] as i16;
+            if mobility_factor != 0 {
+                let num_attacks: i16 = match piece_type {
+                    1 => knight_attacks(false, 1 << i, board).count_ones() as i16,
+                    2 => get_bishop_attacks(board, false, i as u8).count_ones() as i16,
+                    3 => get_rook_attacks(board, false, i as u8).count_ones() as i16,
+                    4 => get_queen_attacks(board, false, i as u8).count_ones() as i16,
+                    _ => 0,
+                };
+                mobility_score -= num_attacks * mobility_factor;
+            }
         }
     }
 
-    return modifier;
+    return (mg_modifier, eg_modifier, mobility_score);
 }
 
 // returns score for argument max_side (true = white)

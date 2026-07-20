@@ -8,6 +8,7 @@ pub const SEMIOPEN_FILE_ROOK: i16 = 10;
 pub const TEMPO_BONUS: i16 = 20;
 pub const MG_BISHOP_PAIR_BONUS: i16 = 30;
 pub const EG_BISHOP_PAIR_BONUS: i16 = 50;
+pub const MOBILITY_BONUS: [i16; 4] = [4, 3, 2, 1]; // knight, bishop, rook, queen
 
 #[rustfmt::skip]
 pub const MG_PAWN_MOD: [i8; 64] = [
