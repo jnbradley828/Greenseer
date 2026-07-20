@@ -133,6 +133,7 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
         .and_then(|i| parts.get(i + 1))
         .and_then(|d| d.parse::<u32>().ok());
 
+    const MOVE_OVERHEAD: u32 = 20;
     match (depth, movetime, wtime, btime, winc, binc) {
         (_, Some(mt), _, _, _, _) => {
             let cancel = Arc::new(AtomicBool::new(false));
@@ -172,15 +173,18 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
         }
         (_, _, Some(wt), Some(bt), _, _) => {
             let (time, inc, opptime) = if game.board.side_to_move {
-                (wt, winc.unwrap_or(0), bt)
+                (wt.saturating_sub(MOVE_OVERHEAD), winc.unwrap_or(0), bt)
             } else {
-                (bt, binc.unwrap_or(0), wt)
+                (bt.saturating_sub(MOVE_OVERHEAD), binc.unwrap_or(0), wt)
             };
 
             let mut mt: u32;
 
             // cap thinking at 50ms if there is only 1 move, 3 seconds if this is move 1. Cap time at time remaining / 10 if low on time (<=3 seconds)
-            if game.legal_moves.len() == 1 {
+            let panic_threshold = 50;
+            if time <= panic_threshold {
+                mt = 1;
+            } else if game.legal_moves.len() == 1 {
                 mt = 50;
             } else {
                 mt = (time / 20) + (inc * 3 / 4);

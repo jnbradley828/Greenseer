@@ -1,3 +1,9 @@
+use crate::engine::eval_heuristics::{
+    EARLY_QUEEN_FACTOR, EG_BISHOP_MOD, EG_BISHOP_PAIR_BONUS, EG_KING_MOD, EG_KNIGHT_MOD,
+    EG_PAWN_MOD, EG_QUEEN_MOD, EG_ROOK_MOD, MAX_MAJOR_PIECE_MATERIAL, MG_BISHOP_MOD,
+    MG_BISHOP_PAIR_BONUS, MG_KING_MOD, MG_KNIGHT_MOD, MG_PAWN_MOD, MG_QUEEN_MOD, MG_ROOK_MOD,
+    OPEN_FILE_ROOK, PIECE_VALUES, SEMIOPEN_FILE_ROOK, TEMPO_BONUS,
+};
 use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
 use oxi_chess_lib;
 use oxi_chess_lib::moves::get_legal_moves;
@@ -131,9 +137,6 @@ pub fn iteratively_deepen(
 }
 
 // returns objective material count
-const PIECE_VALUES: [i16; 5] = [100, 300, 300, 500, 900]; // [p, n, b, r, q]
-const MAX_MAJOR_PIECE_MATERIAL: i16 =
-    2 * (PIECE_VALUES[1] * 2) + (PIECE_VALUES[2] * 2) + (PIECE_VALUES[3] * 2 + PIECE_VALUES[4]);
 fn count_material(game: &oxi_chess_lib::game::ChessGame, pawns: bool, total: bool) -> i16 {
     let mut material: i16 = 0;
 
@@ -175,150 +178,6 @@ fn count_material(game: &oxi_chess_lib::game::ChessGame, pawns: bool, total: boo
     return material;
 }
 
-#[rustfmt::skip]
-const MG_PAWN_MOD: [i8; 64] = [
-    0,   0,   0,   0,   0,   0,   0,   0,   // rank 1
-    5,  10,  10, -20, -20,  10,  10,   5,   // rank 2
-    5,  -5, -10,   0,   0, -10,  -5,   5,   // rank 3
-    0,   0,  20,  22,  22,  20,   0,   0,   // rank 4
-    5,   5,  15,  25,  25,  15,   5,   5,   // rank 5
-   10,  10,  20,  30,  30,  20,  10,  10,   // rank 6
-   50,  50,  50,  50,  50,  50,  50,  50,   // rank 7
-    0,   0,   0,   0,   0,   0,   0,   0    // rank 8
-];
-
-#[rustfmt::skip]
-const MG_KNIGHT_MOD: [i8; 64] = [
-  -50, -40, -30, -30, -30, -30, -40, -50,   // rank 1
-  -40, -20,   0,   5,   5,   0, -20, -40,   // rank 2
-  -30,   5,  10,  15,  15,  10,   5, -30,   // rank 3
-  -30,   0,  15,  20,  20,  15,   0, -30,   // rank 4
-  -30,   5,  15,  20,  20,  15,   5, -30,   // rank 5
-  -30,   0,  10,  15,  15,  10,   0, -30,   // rank 6
-  -40, -20,   0,   0,   0,   0, -20, -40,   // rank 7
-  -50, -40, -30, -30, -30, -30, -40, -50    // rank 8
-];
-
-#[rustfmt::skip]
-const MG_BISHOP_MOD: [i8; 64] = [
-  -20, -10, -10, -10, -10, -10, -10, -20,   // rank 1
-  -10,   5,   0,   0,   0,   0,   5, -10,   // rank 2
-  -10,   0,   5,  10,  10,   5,   0, -10,   // rank 3
-  -10,   0,  10,  15,  15,  10,   0, -10,   // rank 4
-  -10,   0,  10,  15,  15,  10,   0, -10,   // rank 5
-  -10,   0,   5,  10,  10,   5,   0, -10,   // rank 6
-  -10,   5,   0,   0,   0,   0,   5, -10,   // rank 7
-  -20, -10, -10, -10, -10, -10, -10, -20    // rank 8
-];
-
-#[rustfmt::skip]
-const MG_ROOK_MOD: [i8; 64] = [
-    0,   0,   3,   5,   5,   3,   0,   0,   // rank 1
-   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 2
-   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 3
-   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 4
-   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 5
-   -5,   0,   0,   0,   0,   0,   0,  -5,   // rank 6
-    5,  10,  10,  10,  10,  10,  10,   5,   // rank 7
-    0,   0,   0,   0,   0,   0,   0,   0    // rank 8
-];
-
-#[rustfmt::skip]
-const MG_QUEEN_MOD: [i8; 64] = [
-  -20, -10, -10,  -5,  -5, -10, -10, -20,   // rank 1
-  -10,   0,   0,   0,   0,   0,   0, -10,   // rank 2
-  -10,   0,   5,   5,   5,   5,   0, -10,   // rank 3
-   -5,   0,   5,   5,   5,   5,   0,  -5,   // rank 4
-   -5,   0,   5,   5,   5,   5,   0,  -5,   // rank 5
-  -10,   0,   5,   5,   5,   5,   0, -10,   // rank 6
-  -10,   0,   0,   0,   0,   0,   0, -10,   // rank 7
-  -20, -10, -10,  -5,  -5, -10, -10, -20    // rank 8
-];
-
-#[rustfmt::skip]
-const MG_KING_MOD: [i8; 64] = [
-   20,  30,  10,   0,   0,  10,  30,  20,   // rank 1
-   20,  20,   0,   0,   0,   0,  20,  20,   // rank 2
-  -10, -20, -20, -20, -20, -20, -20, -10,   // rank 3
-  -20, -30, -30, -40, -40, -30, -30, -20,   // rank 4
-  -30, -40, -40, -50, -50, -40, -40, -30,   // rank 5
-  -30, -40, -40, -50, -50, -40, -40, -30,   // rank 6
-  -30, -40, -40, -50, -50, -40, -40, -30,   // rank 7
-  -30, -40, -40, -50, -50, -40, -40, -30    // rank 8
-];
-
-#[rustfmt::skip]
-const EG_PAWN_MOD: [i8; 64] = [
-    0,   0,   0,   0,   0,   0,   0,   0,
-   -5,  -5,  -5,  -5,  -5,  -5,  -5,  -5,
-    0,   0,   0,   0,   0,   0,   0,   0,
-    5,   5,   5,   5,   5,   5,   5,   5,
-   15,  15,  15,  15,  15,  15,  15,  15,
-   30,  30,  30,  30,  30,  30,  30,  30,
-   55,  60,  60,  60,  60,  60,  60,  55,
-    0,   0,   0,   0,   0,   0,   0,   0
-];
-
-#[rustfmt::skip]
-const EG_KNIGHT_MOD: [i8; 64] = [
-  -60, -50, -40, -40, -40, -40, -50, -60,
-  -50, -30, -15, -10, -10, -15, -30, -50,
-  -40, -15,   5,   8,   8,   5, -15, -40,
-  -40, -10,   8,  15,  15,   8, -10, -40,
-  -40, -10,   8,  15,  15,   8, -10, -40,
-  -40, -15,   5,   8,   8,   5, -15, -40,
-  -50, -30, -15, -10, -10, -15, -30, -50,
-  -60, -50, -40, -40, -40, -40, -50, -60
-];
-
-#[rustfmt::skip]
-const EG_BISHOP_MOD: [i8; 64] = [
-  -15,  -5,  -5,  -5,  -5,  -5,  -5, -15,
-   -5,   0,   0,   0,   0,   0,   0,  -5,
-   -5,   0,   8,  10,  10,   8,   0,  -5,
-   -5,   0,  10,  15,  15,  10,   0,  -5,
-   -5,   0,  10,  15,  15,  10,   0,  -5,
-   -5,   0,   8,  10,  10,   8,   0,  -5,
-   -5,   5,   0,   0,   0,   0,   5,  -5,
-  -15,  -5,  -5,  -5,  -5,  -5,  -5, -15
-];
-
-#[rustfmt::skip]
-const EG_ROOK_MOD: [i8; 64] = [
-   -5,  -5,  -5,  -5,  -5,  -5,  -5,  -5,
-    0,   0,   0,   0,   0,   0,   0,   0,
-    0,   0,   0,   0,   0,   0,   0,   0,
-    0,   0,   0,   0,   0,   0,   0,   0,
-    0,   0,   0,   0,   0,   0,   0,   0,
-    5,   5,   5,   5,   5,   5,   5,   5,
-   20,  20,  20,  20,  20,  20,  20,  20,
-    5,   5,   5,   5,   5,   5,   5,   5
-];
-
-#[rustfmt::skip]
-const EG_QUEEN_MOD: [i8; 64] = [
-  -20, -10, -10,  -5,  -5, -10, -10, -20,
-  -10,   0,   5,   5,   5,   5,   0, -10,
-  -10,   5,   8,  10,  10,   8,   5, -10,
-   -5,   5,  10,  12,  12,  10,   5,  -5,
-   -5,   5,  10,  12,  12,  10,   5,  -5,
-  -10,   5,   8,  10,  10,   8,   5, -10,
-  -10,   0,   5,   5,   5,   5,   0, -10,
-  -20, -10, -10,  -5,  -5, -10, -10, -20
-];
-
-#[rustfmt::skip]
-const EG_KING_MOD: [i8; 64] = [
-  -20, -10,   0,   5,   5,   0, -10, -20,
-  -10,   5,  15,  20,  20,  15,   5, -10,
-    0,  15,  25,  30,  30,  25,  15,   0,
-    5,  20,  30,  35,  35,  30,  20,   5,
-    5,  20,  30,  35,  35,  30,  20,   5,
-    0,  15,  25,  30,  30,  25,  15,   0,
-  -10,   5,  15,  20,  20,  15,   5, -10,
-  -20, -10,   0,   5,   5,   0, -10, -20
-];
-
 // returns objective static evaluation.
 pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
     // evaluates WITHOUT future calculation. use minimax to calculate at depth.
@@ -332,10 +191,6 @@ pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
 
 // value tuned based on fastchess match results.
 const C: f32 = 15.0;
-
-const EARLY_QUEEN_FACTOR: i16 = 10;
-const OPEN_FILE_ROOK: i16 = 20;
-const SEMIOPEN_FILE_ROOK: i16 = 10;
 
 // returns objective positional modifications to score.
 pub fn positional_mods(
@@ -400,6 +255,19 @@ pub fn positional_mods(
         b_rooks &= b_rooks - 1;
     }
 
+    // give a bonus for bishop pair
+    let w_bishops = (game.board.bishops & game.board.white_pieces).count_ones();
+    let b_bishops = (game.board.bishops & game.board.black_pieces).count_ones();
+    if w_bishops >= 2 {
+        mg_modifier += MG_BISHOP_PAIR_BONUS;
+        eg_modifier += EG_BISHOP_PAIR_BONUS;
+    }
+    if b_bishops >= 2 {
+        mg_modifier -= MG_BISHOP_PAIR_BONUS;
+        eg_modifier -= EG_BISHOP_PAIR_BONUS;
+    }
+
+    // weight middlegame vs endgame relevancy
     let eg_weighted = ((MAX_MAJOR_PIECE_MATERIAL - major_piece_count) as f32
         / MAX_MAJOR_PIECE_MATERIAL as f32)
         * eg_modifier as f32;
@@ -432,6 +300,11 @@ pub fn positional_mods(
     let mut result = (mg_weighted + eg_weighted).round() as i16;
     result += trading_incentive;
     result += early_queen_mod;
+    if game.board.side_to_move {
+        result += TEMPO_BONUS;
+    } else {
+        result -= TEMPO_BONUS;
+    }
 
     return result;
 }
