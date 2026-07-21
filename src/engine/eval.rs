@@ -1,9 +1,4 @@
-use crate::engine::eval_heuristics::{
-    EARLY_QUEEN_FACTOR, EG_BISHOP_MOD, EG_BISHOP_PAIR_BONUS, EG_KING_MOD, EG_KNIGHT_MOD,
-    EG_PAWN_MOD, EG_QUEEN_MOD, EG_ROOK_MOD, MAX_MAJOR_PIECE_MATERIAL, MG_BISHOP_MOD,
-    MG_BISHOP_PAIR_BONUS, MG_KING_MOD, MG_KNIGHT_MOD, MG_PAWN_MOD, MG_QUEEN_MOD, MG_ROOK_MOD,
-    MOBILITY_BONUS, OPEN_FILE_ROOK, PIECE_VALUES, SEMIOPEN_FILE_ROOK, TEMPO_BONUS,
-};
+use crate::engine::eval_heuristics::*;
 use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
 use oxi_chess_lib;
 use oxi_chess_lib::board::ChessBoard;
@@ -243,9 +238,9 @@ pub fn positional_mods(
         let sq: u64 = 1 << w_rooks.trailing_zeros();
         let file_i = (oxi_chess_lib::utils::file_value(sq) - 1) as usize;
 
-        if ROOK_FILE_MASK[file_i] & game.board.pawns == 0 {
+        if FILE_MASK[file_i] & game.board.pawns == 0 {
             mg_modifier += OPEN_FILE_ROOK;
-        } else if ROOK_FILE_MASK[file_i] & (game.board.pawns & game.board.white_pieces) == 0 {
+        } else if FILE_MASK[file_i] & (game.board.pawns & game.board.white_pieces) == 0 {
             mg_modifier += SEMIOPEN_FILE_ROOK;
         }
         w_rooks &= w_rooks - 1;
@@ -254,9 +249,9 @@ pub fn positional_mods(
         let sq: u64 = 1 << b_rooks.trailing_zeros();
         let file_i = (oxi_chess_lib::utils::file_value(sq) - 1) as usize;
 
-        if ROOK_FILE_MASK[file_i] & game.board.pawns == 0 {
+        if FILE_MASK[file_i] & game.board.pawns == 0 {
             mg_modifier -= OPEN_FILE_ROOK;
-        } else if ROOK_FILE_MASK[file_i] & (game.board.pawns & game.board.black_pieces) == 0 {
+        } else if FILE_MASK[file_i] & (game.board.pawns & game.board.black_pieces) == 0 {
             mg_modifier -= SEMIOPEN_FILE_ROOK;
         }
         b_rooks &= b_rooks - 1;
@@ -273,6 +268,21 @@ pub fn positional_mods(
         mg_modifier -= MG_BISHOP_PAIR_BONUS;
         eg_modifier -= EG_BISHOP_PAIR_BONUS;
     }
+
+    // give a penalty for doubled pawns
+    let mut wdb_pawns_count: i16 = 0;
+    let mut bdb_pawns_count: i16 = 0;
+    for i in 0..8 {
+        let file_mask = FILE_MASK[i];
+        wdb_pawns_count +=
+            ((file_mask & game.board.white_pieces & game.board.pawns).count_ones() as i16 - 1)
+                .max(0);
+        bdb_pawns_count +=
+            ((file_mask & game.board.black_pieces & game.board.pawns).count_ones() as i16 - 1)
+                .max(0);
+    }
+    mg_modifier -= (wdb_pawns_count - bdb_pawns_count) * MG_DOUBLED_PAWN_PENALTY;
+    eg_modifier -= (wdb_pawns_count - bdb_pawns_count) * EG_DOUBLED_PAWN_PENALTY;
 
     // weight middlegame vs endgame relevancy
     let eg_weighted = ((MAX_MAJOR_PIECE_MATERIAL - major_piece_count) as f32
@@ -408,8 +418,8 @@ pub fn unsigned_evaluate(game: &oxi_chess_lib::game::ChessGame, max_side: bool) 
     }
 }
 
-// ROOK_FILE_MASK[0] = a file.
-const ROOK_FILE_MASK: [u64; 8] = [
+// FILE_MASK[0] = a file.
+const FILE_MASK: [u64; 8] = [
     0x0101010101010101,
     0x0202020202020202,
     0x0404040404040404,

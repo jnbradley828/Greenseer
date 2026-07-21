@@ -9,6 +9,8 @@ pub const TEMPO_BONUS: i16 = 20;
 pub const MG_BISHOP_PAIR_BONUS: i16 = 30;
 pub const EG_BISHOP_PAIR_BONUS: i16 = 50;
 pub const MOBILITY_BONUS: [i16; 4] = [4, 3, 2, 1]; // knight, bishop, rook, queen
+pub const MG_DOUBLED_PAWN_PENALTY: i16 = 10;
+pub const EG_DOUBLED_PAWN_PENALTY: i16 = 20;
 
 #[rustfmt::skip]
 pub const MG_PAWN_MOD: [i8; 64] = [

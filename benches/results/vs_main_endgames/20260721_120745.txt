@@ -1,0 +1,765 @@
+Indexing opening suite...
+Finished game 1 (dev vs main): 0-1 {Black mates}
+Finished game 2 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 3 (dev vs main): 0-1 {Black mates}
+Finished game 4 (main vs dev): 1-0 {White mates}
+Finished game 5 (dev vs main): 1-0 {White mates}
+Finished game 6 (main vs dev): 0-1 {Black mates}
+Finished game 7 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 8 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 9 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 10 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 11 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 12 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 13 (dev vs main): 0-1 {Black mates}
+Finished game 15 (dev vs main): 0-1 {Black mates}
+Finished game 14 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 17 (dev vs main): 1-0 {White mates}
+Finished game 16 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 19 (dev vs main): 1-0 {White mates}
+Finished game 18 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 21 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 20 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -17.39 +/- 128.15, nElo: -21.63 +/- 152.27
+LOS: 39.03 %, DrawRatio: 30.00 %, PairsRatio: 0.75
+Games: 20, Wins: 4, Losses: 5, Draws: 11, Points: 9.5 (47.50 %)
+Ptnml(0-2): [1, 3, 3, 2, 1], WL/DD Ratio: 0.00
+LLR: -0.04 (-1.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 22 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 23 (dev vs main): 0-1 {Black mates}
+Finished game 25 (dev vs main): 1-0 {White mates}
+Finished game 24 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 26 (main vs dev): 1-0 {White mates}
+Finished game 27 (dev vs main): 1-0 {White mates}
+Finished game 28 (main vs dev): 1-0 {White mates}
+Finished game 29 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 31 (dev vs main): 1-0 {White mates}
+Finished game 30 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 32 (main vs dev): 0-1 {Black mates}
+Finished game 33 (dev vs main): 0-1 {Black mates}
+Finished game 35 (dev vs main): 0-1 {Black mates}
+Finished game 34 (main vs dev): 0-1 {Black mates}
+Finished game 36 (main vs dev): 1-0 {White mates}
+Finished game 37 (dev vs main): 1-0 {White mates}
+Finished game 38 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 39 (dev vs main): 1-0 {White mates}
+Finished game 40 (main vs dev): 1-0 {White mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -8.69 +/- 83.16, nElo: -11.47 +/- 107.67
+LOS: 41.73 %, DrawRatio: 45.00 %, PairsRatio: 0.83
+Games: 40, Wins: 11, Losses: 12, Draws: 17, Points: 19.5 (48.75 %)
+Ptnml(0-2): [2, 4, 9, 3, 2], WL/DD Ratio: 0.80
+LLR: -0.05 (-1.8%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 41 (dev vs main): 0-1 {Black mates}
+Finished game 42 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 43 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 44 (main vs dev): 1-0 {White mates}
+Finished game 45 (dev vs main): 0-1 {Black mates}
+Finished game 47 (dev vs main): 0-1 {Black mates}
+Finished game 46 (main vs dev): 0-1 {Black mates}
+Finished game 48 (main vs dev): 0-1 {Black mates}
+Finished game 49 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 50 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 52 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 51 (dev vs main): 1-0 {White mates}
+Finished game 53 (dev vs main): 1-0 {White mates}
+Finished game 54 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 55 (dev vs main): 1-0 {White mates}
+Finished game 56 (main vs dev): 1/2-1/2 {Draw by stalemate}
+Finished game 57 (dev vs main): 0-1 {Black mates}
+Finished game 58 (main vs dev): 0-1 {Black mates}
+Finished game 59 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 60 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -0.00 +/- 60.66, nElo: 0.00 +/- 87.91
+LOS: 50.00 %, DrawRatio: 46.67 %, PairsRatio: 1.00
+Games: 60, Wins: 17, Losses: 17, Draws: 26, Points: 30.0 (50.00 %)
+Ptnml(0-2): [2, 6, 14, 6, 2], WL/DD Ratio: 1.00
+LLR: -0.02 (-0.8%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 61 (dev vs main): 1-0 {White mates}
+Finished game 62 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 63 (dev vs main): 0-1 {Black mates}
+Finished game 64 (main vs dev): 0-1 {Black mates}
+Finished game 65 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 67 (dev vs main): 0-1 {Black mates}
+Finished game 66 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 68 (main vs dev): 0-1 {Black mates}
+Finished game 69 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 70 (main vs dev): 1-0 {White mates}
+Finished game 71 (dev vs main): 1-0 {White mates}
+Finished game 72 (main vs dev): 1-0 {White mates}
+Finished game 73 (dev vs main): 1-0 {White mates}
+Finished game 74 (main vs dev): 1-0 {White mates}
+Finished game 75 (dev vs main): 0-1 {Black mates}
+Finished game 76 (main vs dev): 0-1 {Black mates}
+Finished game 77 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 78 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 79 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 80 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -0.00 +/- 46.91, nElo: 0.00 +/- 76.13
+LOS: 50.00 %, DrawRatio: 55.00 %, PairsRatio: 1.00
+Games: 80, Wins: 23, Losses: 23, Draws: 34, Points: 40.0 (50.00 %)
+Ptnml(0-2): [2, 7, 22, 7, 2], WL/DD Ratio: 1.20
+LLR: -0.03 (-1.1%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 81 (dev vs main): 0-1 {Black mates}
+Finished game 82 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 83 (dev vs main): 1-0 {White mates}
+Finished game 84 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 85 (dev vs main): 0-1 {Black mates}
+Finished game 86 (main vs dev): 0-1 {Black mates}
+Finished game 88 (main vs dev): 0-1 {Black mates}
+Finished game 87 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 89 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 90 (main vs dev): 1-0 {White mates}
+Finished game 91 (dev vs main): 0-1 {Black mates}
+Finished game 92 (main vs dev): 0-1 {Black mates}
+Finished game 94 (main vs dev): 0-1 {Black mates}
+Finished game 93 (dev vs main): 1-0 {White mates}
+Finished game 95 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 96 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 97 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 98 (main vs dev): 0-1 {Black mates}
+Finished game 99 (dev vs main): 1-0 {White mates}
+Finished game 100 (main vs dev): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: 17.39 +/- 44.75, nElo: 26.65 +/- 68.10
+LOS: 77.84 %, DrawRatio: 50.00 %, PairsRatio: 1.27
+Games: 100, Wins: 32, Losses: 27, Draws: 41, Points: 52.5 (52.50 %)
+Ptnml(0-2): [2, 9, 25, 10, 4], WL/DD Ratio: 1.27
+LLR: 0.18 (6.1%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 101 (dev vs main): 1-0 {White mates}
+Finished game 102 (main vs dev): 0-1 {Black mates}
+Finished game 103 (dev vs main): 1-0 {White mates}
+Finished game 104 (main vs dev): 0-1 {Black mates}
+Finished game 105 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 106 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 108 (main vs dev): 0-1 {Black mates}
+Finished game 107 (dev vs main): 1-0 {White mates}
+Finished game 109 (dev vs main): 0-1 {Black mates}
+Finished game 110 (main vs dev): 0-1 {Black mates}
+Finished game 111 (dev vs main): 1-0 {White mates}
+Finished game 112 (main vs dev): 1-0 {White mates}
+Finished game 113 (dev vs main): 0-1 {Black mates}
+Finished game 114 (main vs dev): 0-1 {Black mates}
+Finished game 115 (dev vs main): 1-0 {White mates}
+Finished game 116 (main vs dev): 1-0 {White mates}
+Finished game 118 (main vs dev): 1-0 {White mates}
+Finished game 117 (dev vs main): 1-0 {White mates}
+Finished game 120 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 119 (dev vs main): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: 29.02 +/- 42.33, nElo: 43.03 +/- 62.16
+LOS: 91.26 %, DrawRatio: 51.67 %, PairsRatio: 1.42
+Games: 120, Wins: 43, Losses: 33, Draws: 44, Points: 65.0 (54.17 %)
+Ptnml(0-2): [2, 10, 31, 10, 7], WL/DD Ratio: 1.58
+LLR: 0.38 (12.9%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 122 (main vs dev): 1-0 {White mates}
+Finished game 121 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 123 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 124 (main vs dev): 1-0 {White mates}
+Finished game 125 (dev vs main): 0-1 {Black mates}
+Finished game 126 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 127 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 129 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 128 (main vs dev): 0-1 {Black mates}
+Finished game 130 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 131 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 132 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 134 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 133 (dev vs main): 1-0 {White mates}
+Finished game 135 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 136 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 137 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 138 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 139 (dev vs main): 0-1 {Black mates}
+Finished game 141 (dev vs main): 0-1 {Black mates}
+Finished game 140 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: 19.88 +/- 38.30, nElo: 30.06 +/- 57.55
+LOS: 84.70 %, DrawRatio: 50.00 %, PairsRatio: 1.19
+Games: 140, Wins: 45, Losses: 37, Draws: 58, Points: 74.0 (52.86 %)
+Ptnml(0-2): [2, 14, 35, 12, 7], WL/DD Ratio: 1.19
+LLR: 0.29 (10.0%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 142 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 143 (dev vs main): 1-0 {White mates}
+Finished game 145 (dev vs main): 1-0 {White mates}
+Finished game 144 (main vs dev): 1-0 {White mates}
+Finished game 146 (main vs dev): 1-0 {White mates}
+Finished game 147 (dev vs main): 0-1 {Black mates}
+Finished game 148 (main vs dev): 0-1 {Black mates}
+Finished game 150 (main vs dev): 1-0 {White mates}
+Finished game 149 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 151 (dev vs main): 1-0 {White mates}
+Finished game 152 (main vs dev): 1-0 {White mates}
+Finished game 154 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 153 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 155 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 156 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 157 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 158 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 159 (dev vs main): 0-1 {Black mates}
+Finished game 160 (main vs dev): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: 13.03 +/- 34.09, nElo: 20.67 +/- 53.83
+LOS: 77.42 %, DrawRatio: 53.75 %, PairsRatio: 1.06
+Games: 160, Wins: 50, Losses: 44, Draws: 66, Points: 83.0 (51.88 %)
+Ptnml(0-2): [2, 16, 43, 12, 7], WL/DD Ratio: 1.26
+LLR: 0.21 (7.2%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 161 (dev vs main): 1-0 {White mates}
+Finished game 163 (dev vs main): 1-0 {White mates}
+Finished game 162 (main vs dev): 1-0 {White mates}
+Finished game 164 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 165 (dev vs main): 0-1 {Black mates}
+Finished game 166 (main vs dev): 0-1 {Black mates}
+Finished game 167 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 168 (main vs dev): 1-0 {White mates}
+Finished game 169 (dev vs main): 1-0 {White mates}
+Finished game 170 (main vs dev): 1-0 {White mates}
+Finished game 171 (dev vs main): 1-0 {White mates}
+Finished game 172 (main vs dev): 1-0 {White mates}
+Finished game 173 (dev vs main): 1-0 {White mates}
+Finished game 174 (main vs dev): 1-0 {White mates}
+Finished game 175 (dev vs main): 0-1 {Black mates}
+Finished game 176 (main vs dev): 0-1 {Black mates}
+Finished game 177 (dev vs main): 1-0 {White mates}
+Finished game 178 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 179 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 180 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: 13.52 +/- 30.97, nElo: 22.24 +/- 50.76
+LOS: 80.47 %, DrawRatio: 55.56 %, PairsRatio: 1.11
+Games: 180, Wins: 58, Losses: 51, Draws: 71, Points: 93.5 (51.94 %)
+Ptnml(0-2): [2, 17, 50, 14, 7], WL/DD Ratio: 1.50
+LLR: 0.26 (8.9%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 181 (dev vs main): 0-1 {Black mates}
+Finished game 182 (main vs dev): 0-1 {Black mates}
+Finished game 183 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 184 (main vs dev): 1-0 {White mates}
+Finished game 185 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 186 (main vs dev): 1-0 {White mates}
+Finished game 187 (dev vs main): 0-1 {Black mates}
+Finished game 188 (main vs dev): 0-1 {Black mates}
+Finished game 189 (dev vs main): 1-0 {White mates}
+Finished game 190 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 191 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 192 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 193 (dev vs main): 1-0 {White mates}
+Finished game 194 (main vs dev): 1-0 {White mates}
+Finished game 195 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 196 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 198 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 197 (dev vs main): 0-1 {Black mates}
+Finished game 200 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 199 (dev vs main): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: 6.95 +/- 28.94, nElo: 11.59 +/- 48.15
+LOS: 68.15 %, DrawRatio: 55.00 %, PairsRatio: 0.96
+Games: 200, Wins: 62, Losses: 58, Draws: 80, Points: 102.0 (51.00 %)
+Ptnml(0-2): [2, 21, 55, 15, 7], WL/DD Ratio: 1.50
+LLR: 0.11 (3.8%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 201 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 202 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 203 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 204 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 206 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 205 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 207 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 208 (main vs dev): 0-1 {Black mates}
+Finished game 209 (dev vs main): 0-1 {Black mates}
+Finished game 211 (dev vs main): 0-1 {Black mates}
+Finished game 210 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 212 (main vs dev): 1-0 {White mates}
+Finished game 213 (dev vs main): 1-0 {White mates}
+Finished game 214 (main vs dev): 1-0 {White mates}
+Finished game 215 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 216 (main vs dev): 1-0 {White mates}
+Finished game 217 (dev vs main): 0-1 {Black mates}
+Finished game 218 (main vs dev): 1-0 {White mates}
+Finished game 219 (dev vs main): 0-1 {Black mates}
+Finished game 220 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -3.16 +/- 28.43, nElo: -5.11 +/- 45.91
+LOS: 41.36 %, DrawRatio: 53.64 %, PairsRatio: 0.82
+Games: 220, Wins: 64, Losses: 66, Draws: 90, Points: 109.0 (49.55 %)
+Ptnml(0-2): [4, 24, 59, 16, 7], WL/DD Ratio: 1.36
+LLR: -0.18 (-6.3%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 221 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 222 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 223 (dev vs main): 1-0 {White mates}
+Finished game 224 (main vs dev): 1-0 {White mates}
+Finished game 226 (main vs dev): 1-0 {White mates}
+Finished game 225 (dev vs main): 1-0 {White mates}
+Finished game 228 (main vs dev): 0-1 {Black mates}
+Finished game 227 (dev vs main): 0-1 {Black mates}
+Finished game 230 (main vs dev): 1-0 {White mates}
+Finished game 229 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 231 (dev vs main): 1-0 {White mates}
+Finished game 232 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 233 (dev vs main): 0-1 {Black mates}
+Finished game 234 (main vs dev): 0-1 {Black mates}
+Finished game 236 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 235 (dev vs main): 0-1 {Black mates}
+Finished game 237 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 239 (dev vs main): 1-0 {White mates}
+Finished game 238 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 241 (dev vs main): 0-1 {Black mates}
+Finished game 242 (main vs dev): 1-0 {White mates}
+Finished game 240 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -5.74 +/- 27.03, nElo: -9.32 +/- 43.77
+LOS: 33.82 %, DrawRatio: 53.72 %, PairsRatio: 0.81
+Games: 242, Wins: 70, Losses: 74, Draws: 98, Points: 119.0 (49.17 %)
+Ptnml(0-2): [5, 26, 65, 18, 7], WL/DD Ratio: 1.41
+LLR: -0.29 (-9.7%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 244 (main vs dev): 1-0 {White mates}
+Finished game 243 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 245 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 247 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 246 (main vs dev): 1-0 {White mates}
+Finished game 248 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 249 (dev vs main): 1-0 {White mates}
+Finished game 251 (dev vs main): 1-0 {White mates}
+Finished game 250 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 252 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 253 (dev vs main): 1-0 {White mates}
+Finished game 254 (main vs dev): 1-0 {White mates}
+Finished game 255 (dev vs main): 0-1 {Black mates}
+Finished game 256 (main vs dev): 0-1 {Black mates}
+Finished game 257 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 258 (main vs dev): 0-1 {Black mates}
+Finished game 259 (dev vs main): 1-0 {White mates}
+Finished game 260 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -2.67 +/- 25.97, nElo: -4.35 +/- 42.23
+LOS: 41.99 %, DrawRatio: 52.31 %, PairsRatio: 0.88
+Games: 260, Wins: 76, Losses: 78, Draws: 106, Points: 129.0 (49.62 %)
+Ptnml(0-2): [5, 28, 68, 22, 7], WL/DD Ratio: 1.43
+LLR: -0.20 (-6.8%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 262 (main vs dev): 1-0 {White mates}
+Finished game 261 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 263 (dev vs main): 1-0 {White mates}
+Finished game 265 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 264 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 266 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 267 (dev vs main): 1-0 {White mates}
+Finished game 268 (main vs dev): 1-0 {White mates}
+Finished game 270 (main vs dev): 0-1 {Black mates}
+Finished game 269 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 271 (dev vs main): 0-1 {Black mates}
+Finished game 272 (main vs dev): 0-1 {Black mates}
+Finished game 274 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 273 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 275 (dev vs main): 0-1 {Black mates}
+Finished game 276 (main vs dev): 0-1 {Black mates}
+Finished game 277 (dev vs main): 1-0 {White mates}
+Finished game 278 (main vs dev): 1-0 {White mates}
+Finished game 279 (dev vs main): 1-0 {White mates}
+Finished game 280 (main vs dev): 1-0 {White mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -1.24 +/- 24.48, nElo: -2.07 +/- 40.70
+LOS: 46.04 %, DrawRatio: 53.57 %, PairsRatio: 0.91
+Games: 280, Wins: 83, Losses: 84, Draws: 113, Points: 139.5 (49.82 %)
+Ptnml(0-2): [5, 29, 75, 24, 7], WL/DD Ratio: 1.50
+LLR: -0.16 (-5.6%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 281 (dev vs main): 0-1 {Black mates}
+Finished game 282 (main vs dev): 1-0 {White mates}
+Finished game 283 (dev vs main): 0-1 {Black mates}
+Finished game 284 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 285 (dev vs main): 0-1 {Black mates}
+Finished game 287 (dev vs main): 0-1 {Black mates}
+Finished game 286 (main vs dev): 1-0 {White mates}
+Finished game 289 (dev vs main): 0-1 {Black mates}
+Finished game 288 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 291 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 292 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 290 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 293 (dev vs main): 0-1 {Black mates}
+Finished game 294 (main vs dev): 0-1 {Black mates}
+Finished game 295 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 296 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 297 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 298 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 299 (dev vs main): 0-1 {Black mates}
+Finished game 300 (main vs dev): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -9.27 +/- 24.03, nElo: -15.19 +/- 39.32
+LOS: 22.44 %, DrawRatio: 53.33 %, PairsRatio: 0.79
+Games: 300, Wins: 85, Losses: 93, Draws: 122, Points: 146.0 (48.67 %)
+Ptnml(0-2): [7, 32, 80, 24, 7], WL/DD Ratio: 1.42
+LLR: -0.50 (-17.0%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 301 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 303 (dev vs main): 0-1 {Black mates}
+Finished game 302 (main vs dev): 0-1 {Black mates}
+Finished game 304 (main vs dev): 1-0 {White mates}
+Finished game 305 (dev vs main): 1-0 {White mates}
+Finished game 307 (dev vs main): 0-1 {Black mates}
+Finished game 306 (main vs dev): 1-0 {White mates}
+Finished game 308 (main vs dev): 0-1 {Black mates}
+Finished game 309 (dev vs main): 0-1 {Black mates}
+Finished game 310 (main vs dev): 0-1 {Black mates}
+Finished game 311 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 312 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 313 (dev vs main): 1-0 {White mates}
+Finished game 314 (main vs dev): 1-0 {White mates}
+Finished game 315 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 316 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 317 (dev vs main): 0-1 {Black mates}
+Finished game 318 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 319 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 320 (main vs dev): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -9.77 +/- 23.22, nElo: -16.06 +/- 38.07
+LOS: 20.42 %, DrawRatio: 53.75 %, PairsRatio: 0.80
+Games: 320, Wins: 91, Losses: 100, Draws: 129, Points: 155.5 (48.59 %)
+Ptnml(0-2): [8, 33, 86, 26, 7], WL/DD Ratio: 1.46
+LLR: -0.56 (-18.9%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 321 (dev vs main): 0-1 {Black mates}
+Finished game 322 (main vs dev): 0-1 {Black mates}
+Finished game 323 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 324 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 325 (dev vs main): 1-0 {White mates}
+Finished game 326 (main vs dev): 1-0 {White mates}
+Finished game 327 (dev vs main): 1-0 {White mates}
+Finished game 329 (dev vs main): 0-1 {Black mates}
+Finished game 328 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 331 (dev vs main): 0-1 {Black mates}
+Finished game 330 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 332 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 333 (dev vs main): 0-1 {Black mates}
+Finished game 335 (dev vs main): 0-1 {Black mates}
+Finished game 334 (main vs dev): 0-1 {Black mates}
+Finished game 336 (main vs dev): 0-1 {Black mates}
+Finished game 337 (dev vs main): 1-0 {White mates}
+Finished game 338 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 339 (dev vs main): 0-1 {Black mates}
+Finished game 340 (main vs dev): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -9.20 +/- 22.22, nElo: -15.32 +/- 36.93
+LOS: 20.81 %, DrawRatio: 54.12 %, PairsRatio: 0.81
+Games: 340, Wins: 98, Losses: 107, Draws: 135, Points: 165.5 (48.68 %)
+Ptnml(0-2): [8, 35, 92, 28, 7], WL/DD Ratio: 1.56
+LLR: -0.57 (-19.4%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 341 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 342 (main vs dev): 1-0 {White mates}
+Finished game 343 (dev vs main): 0-1 {Black mates}
+Finished game 344 (main vs dev): 0-1 {Black mates}
+Finished game 345 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 346 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 347 (dev vs main): 0-1 {Black mates}
+Finished game 348 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 349 (dev vs main): 0-1 {Black mates}
+Finished game 351 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 350 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 352 (main vs dev): 1-0 {White mates}
+Finished game 353 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 355 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 356 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 354 (main vs dev): 0-1 {Black mates}
+Finished game 357 (dev vs main): 0-1 {Black mates}
+Finished game 358 (main vs dev): 1-0 {White mates}
+Finished game 360 (main vs dev): 0-1 {Black mates}
+Finished game 359 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -12.55 +/- 21.79, nElo: -20.71 +/- 35.89
+LOS: 12.90 %, DrawRatio: 52.78 %, PairsRatio: 0.77
+Games: 360, Wins: 101, Losses: 114, Draws: 145, Points: 173.5 (48.19 %)
+Ptnml(0-2): [9, 39, 95, 30, 7], WL/DD Ratio: 1.50
+LLR: -0.76 (-25.9%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 362 (main vs dev): 0-1 {Black mates}
+Finished game 361 (dev vs main): 0-1 {Black mates}
+Finished game 363 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 364 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 365 (dev vs main): 0-1 {Black mates}
+Finished game 366 (main vs dev): 0-1 {Black mates}
+Finished game 367 (dev vs main): 0-1 {Black mates}
+Finished game 368 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 369 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 371 (dev vs main): 1-0 {White mates}
+Finished game 370 (main vs dev): 0-1 {Black mates}
+Finished game 372 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 373 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 374 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 375 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 376 (main vs dev): 1-0 {White mates}
+Finished game 377 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 378 (main vs dev): 0-1 {Black mates}
+Finished game 379 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 380 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -10.98 +/- 21.04, nElo: -18.26 +/- 34.93
+LOS: 15.28 %, DrawRatio: 52.63 %, PairsRatio: 0.80
+Games: 380, Wins: 106, Losses: 118, Draws: 156, Points: 184.0 (48.42 %)
+Ptnml(0-2): [9, 41, 100, 33, 7], WL/DD Ratio: 1.44
+LLR: -0.73 (-24.8%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 381 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 382 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 383 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 384 (main vs dev): 1-0 {White mates}
+Finished game 385 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 386 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 387 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 388 (main vs dev): 1-0 {White mates}
+Finished game 389 (dev vs main): 1-0 {White mates}
+Finished game 391 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 390 (main vs dev): 0-1 {Black mates}
+Finished game 393 (dev vs main): 0-1 {Black mates}
+Finished game 392 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 394 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 395 (dev vs main): 1-0 {White mates}
+Finished game 397 (dev vs main): 0-1 {Black mates}
+Finished game 396 (main vs dev): 1-0 {White mates}
+Finished game 398 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 399 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 401 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 400 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -12.17 +/- 20.55, nElo: -20.20 +/- 34.05
+LOS: 12.25 %, DrawRatio: 52.50 %, PairsRatio: 0.76
+Games: 400, Wins: 109, Losses: 123, Draws: 168, Points: 193.0 (48.25 %)
+Ptnml(0-2): [9, 45, 105, 33, 8], WL/DD Ratio: 1.33
+LLR: -0.83 (-28.2%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 403 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 402 (main vs dev): 1-0 {White mates}
+Finished game 404 (main vs dev): 0-1 {Black mates}
+Finished game 406 (main vs dev): 1-0 {White mates}
+Finished game 405 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 407 (dev vs main): 1-0 {White mates}
+Finished game 408 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 409 (dev vs main): 0-1 {Black mates}
+Finished game 411 (dev vs main): 0-1 {Black mates}
+Finished game 410 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 412 (main vs dev): 0-1 {Black mates}
+Finished game 413 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 414 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 415 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 416 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 417 (dev vs main): 1-0 {White mates}
+Finished game 418 (main vs dev): 1-0 {White mates}
+Finished game 419 (dev vs main): 1-0 {White mates}
+Finished game 420 (main vs dev): 1-0 {White mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -12.41 +/- 19.90, nElo: -20.77 +/- 33.23
+LOS: 11.03 %, DrawRatio: 52.38 %, PairsRatio: 0.75
+Games: 420, Wins: 114, Losses: 129, Draws: 177, Points: 202.5 (48.21 %)
+Ptnml(0-2): [9, 48, 110, 35, 8], WL/DD Ratio: 1.34
+LLR: -0.89 (-30.2%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 421 (dev vs main): 1-0 {White mates}
+Finished game 422 (main vs dev): 1-0 {White mates}
+Finished game 423 (dev vs main): 0-1 {Black mates}
+Finished game 424 (main vs dev): 0-1 {Black mates}
+Finished game 425 (dev vs main): 0-1 {Black mates}
+Finished game 426 (main vs dev): 0-1 {Black mates}
+Finished game 427 (dev vs main): 0-1 {Black mates}
+Finished game 428 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 430 (main vs dev): 1-0 {White mates}
+Finished game 429 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 431 (dev vs main): 1-0 {White mates}
+Finished game 432 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 433 (dev vs main): 0-1 {Black mates}
+Finished game 434 (main vs dev): 0-1 {Black mates}
+Finished game 435 (dev vs main): 0-1 {Black mates}
+Finished game 436 (main vs dev): 0-1 {Black mates}
+Finished game 437 (dev vs main): 0-1 {Black mates}
+Finished game 438 (main vs dev): 0-1 {Black mates}
+Finished game 439 (dev vs main): 1-0 {White mates}
+Finished game 440 (main vs dev): 1-0 {White mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -12.64 +/- 19.18, nElo: -21.44 +/- 32.46
+LOS: 9.78 %, DrawRatio: 53.18 %, PairsRatio: 0.75
+Games: 440, Wins: 122, Losses: 138, Draws: 180, Points: 212.0 (48.18 %)
+Ptnml(0-2): [9, 50, 117, 36, 8], WL/DD Ratio: 1.49
+LLR: -0.96 (-32.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 441 (dev vs main): 0-1 {Black mates}
+Finished game 442 (main vs dev): 0-1 {Black mates}
+Finished game 443 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 444 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 445 (dev vs main): 0-1 {Black mates}
+Finished game 446 (main vs dev): 0-1 {Black mates}
+Finished game 447 (dev vs main): 1-0 {White mates}
+Finished game 448 (main vs dev): 1-0 {White mates}
+Finished game 449 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 450 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 451 (dev vs main): 0-1 {Black mates}
+Finished game 452 (main vs dev): 0-1 {Black mates}
+Finished game 453 (dev vs main): 0-1 {Black mates}
+Finished game 454 (main vs dev): 1-0 {White mates}
+Finished game 455 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 456 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 457 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 458 (main vs dev): 1-0 {White mates}
+Finished game 459 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 460 (main vs dev): 1-0 {White mates}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -15.12 +/- 18.68, nElo: -25.75 +/- 31.75
+LOS: 5.59 %, DrawRatio: 53.91 %, PairsRatio: 0.71
+Games: 460, Wins: 126, Losses: 146, Draws: 188, Points: 220.0 (47.83 %)
+Ptnml(0-2): [10, 52, 124, 36, 8], WL/DD Ratio: 1.48
+LLR: -1.16 (-39.4%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 461 (dev vs main): 0-1 {Black mates}
+Finished game 462 (main vs dev): 0-1 {Black mates}
+Finished game 464 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 463 (dev vs main): 1-0 {White mates}
+Finished game 465 (dev vs main): 1-0 {White mates}
+Finished game 466 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 468 (main vs dev): 0-1 {Black mates}
+Finished game 467 (dev vs main): 0-1 {Black mates}
+Finished game 469 (dev vs main): 0-1 {Black mates}
+Finished game 470 (main vs dev): 0-1 {Black mates}
+Finished game 471 (dev vs main): 1-0 {White mates}
+Finished game 472 (main vs dev): 0-1 {Black mates}
+Finished game 473 (dev vs main): 1-0 {White mates}
+Finished game 474 (main vs dev): 1-0 {White mates}
+Finished game 475 (dev vs main): 0-1 {Black mates}
+Finished game 476 (main vs dev): 0-1 {Black mates}
+Finished game 478 (main vs dev): 0-1 {Black mates}
+Finished game 477 (dev vs main): 0-1 {Black mates}
+Finished game 479 (dev vs main): 1-0 {White mates}
+Finished game 480 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -10.86 +/- 18.32, nElo: -18.46 +/- 31.08
+LOS: 12.22 %, DrawRatio: 54.17 %, PairsRatio: 0.77
+Games: 480, Wins: 137, Losses: 152, Draws: 191, Points: 232.5 (48.44 %)
+Ptnml(0-2): [10, 52, 130, 39, 9], WL/DD Ratio: 1.60
+LLR: -0.93 (-31.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 481 (dev vs main): 0-1 {Black mates}
+Finished game 482 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 483 (dev vs main): 1-0 {White mates}
+Finished game 484 (main vs dev): 1-0 {White mates}
+Finished game 485 (dev vs main): 1-0 {White mates}
+Finished game 486 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 488 (main vs dev): 1-0 {White mates}
+Finished game 487 (dev vs main): 1-0 {White mates}
+Finished game 489 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 491 (dev vs main): 0-1 {Black mates}
+Finished game 490 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 492 (main vs dev): 0-1 {Black mates}
+Finished game 493 (dev vs main): 1-0 {White mates}
+Finished game 494 (main vs dev): 1-0 {White mates}
+Finished game 495 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 496 (main vs dev): 1-0 {White mates}
+Finished game 497 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 498 (main vs dev): 0-1 {Black mates}
+Finished game 499 (dev vs main): 0-1 {Black mates}
+Finished game 500 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -11.12 +/- 17.84, nElo: -19.01 +/- 30.45
+LOS: 11.05 %, DrawRatio: 54.00 %, PairsRatio: 0.77
+Games: 500, Wins: 143, Losses: 159, Draws: 198, Points: 242.0 (48.40 %)
+Ptnml(0-2): [10, 55, 135, 41, 9], WL/DD Ratio: 1.65
+LLR: -0.99 (-33.6%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 502 (main vs dev): 0-1 {Black mates}
+Finished game 501 (dev vs main): 0-1 {Black mates}
+Finished game 503 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 504 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 505 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 507 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 508 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 506 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 509 (dev vs main): 0-1 {Black mates}
+Finished game 510 (main vs dev): 0-1 {Black mates}
+Finished game 511 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 513 (dev vs main): 0-1 {Black mates}
+Finished game 512 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 515 (dev vs main): 0-1 {Black mates}
+Finished game 514 (main vs dev): 0-1 {Black mates}
+Finished game 516 (main vs dev): 0-1 {Black mates}
+Finished game 517 (dev vs main): 0-1 {Black mates}
+Finished game 518 (main vs dev): 0-1 {Black mates}
+Finished game 519 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 520 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -10.69 +/- 17.16, nElo: -18.64 +/- 29.86
+LOS: 11.06 %, DrawRatio: 55.77 %, PairsRatio: 0.77
+Games: 520, Wins: 148, Losses: 164, Draws: 208, Points: 252.0 (48.46 %)
+Ptnml(0-2): [10, 55, 145, 41, 9], WL/DD Ratio: 1.59
+LLR: -1.01 (-34.4%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 521 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 522 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 523 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 524 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 525 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 526 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 527 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 528 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 529 (dev vs main): 0-1 {Black mates}
+Finished game 530 (main vs dev): 0-1 {Black mates}
+Finished game 531 (dev vs main): 1-0 {White mates}
+Finished game 533 (dev vs main): 0-1 {Black mates}
+Finished game 532 (main vs dev): 1-0 {White mates}
+Finished game 534 (main vs dev): 0-1 {Black mates}
+Finished game 535 (dev vs main): 1-0 {White mates}
+Finished game 536 (main vs dev): 1-0 {White mates}
+Finished game 537 (dev vs main): 1-0 {White mates}
+Finished game 538 (main vs dev): 0-1 {Black mates}
+Finished game 539 (dev vs main): 0-1 {Black mates}
+Finished game 541 (dev vs main): 0-1 {Black mates}
+Finished game 540 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (10+0.1, NULL, 128MB, endgames.epd):
+Elo: -9.65 +/- 16.76, nElo: -16.90 +/- 29.30
+LOS: 12.92 %, DrawRatio: 56.67 %, PairsRatio: 0.77
+Games: 540, Wins: 154, Losses: 169, Draws: 217, Points: 262.5 (48.61 %)
+Ptnml(0-2): [10, 56, 153, 41, 10], WL/DD Ratio: 1.55
+LLR: -0.97 (-33.1%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 542 (main vs dev): 0-1 {Black mates}
+Finished game 544 (main vs dev): 1-0 {White mates}
+Finished game 543 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 546 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 545 (dev vs main): 0-1 {Black mates}
+Finished game 547 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 548 (main vs dev): 0-1 {Black mates}
