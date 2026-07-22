@@ -1,9 +1,8 @@
 use std::sync::atomic::Ordering;
 
 use oxi_chess_lib::board::ChessBoard;
-use oxi_chess_lib::utils::rank_value;
+use oxi_chess_lib::moves::{BLACK_PAWN_ATTACKS, WHITE_PAWN_ATTACKS};
 
-use crate::engine::eval;
 use crate::engine::eval::{FILE_MASK, RANK_MASK};
 use crate::engine::eval_heuristics::TT_AGE_FACTOR;
 use crate::engine::search::TT;
@@ -88,6 +87,113 @@ pub fn pawn_passed(sq_i: u8, color: bool, board: &ChessBoard) -> bool {
     } else {
         false
     }
+}
+
+// mask of the two adjacent files only (excludes the pawn's own file) - used for isolated pawn
+// detection. unlike PASSED_PAWN_MASKS this doesn't depend on rank or color, so one entry per
+// file is enough - no need for a per-square (64-entry) table.
+pub const ADJACENT_FILE_MASKS: [u64; 8] = generate_adjacent_file_masks();
+
+const fn generate_adjacent_file_masks() -> [u64; 8] {
+    let mut masks = [0u64; 8];
+    let mut file = 0;
+    while file < 8 {
+        let mut mask = 0u64;
+        if file > 0 {
+            mask |= FILE_MASK[file - 1];
+        }
+        if file < 7 {
+            mask |= FILE_MASK[file + 1];
+        }
+        masks[file] = mask;
+        file += 1;
+    }
+    masks
+}
+
+pub fn pawn_isolated(sq_i: u8, color: bool, board: &ChessBoard) -> bool {
+    let file_i = (oxi_chess_lib::utils::file_value(1u64 << sq_i) - 1) as usize;
+    let friendly_pawns: u64 = if color {
+        board.white_pieces & board.pawns
+    } else {
+        board.black_pieces & board.pawns
+    };
+    ADJACENT_FILE_MASKS[file_i] & friendly_pawns == 0
+}
+
+// mask of the squares (adjacent files, this pawn's rank or further back) where a friendly pawn
+// would need to stand to be able to defend this pawn's stop square by pushing up beside it -
+// used for backward pawn detection.
+pub const BACKWARD_PAWN_MASKS: [[u64; 64]; 2] = generate_backward_pawn_masks();
+
+const fn backward_pawn_mask(color: bool, sq_i: u8) -> u64 {
+    let sq: u64 = 1 << sq_i;
+    let file_i = (oxi_chess_lib::utils::file_value(sq) - 1) as usize;
+    let rank = oxi_chess_lib::utils::rank_value(sq);
+
+    let mut rank_mask: u64 = 0;
+    if color {
+        // white: a defender must be on this rank or below.
+        let mut r = 1;
+        while r <= rank {
+            rank_mask |= RANK_MASK[(r - 1) as usize];
+            r += 1;
+        }
+    } else {
+        // black: a defender must be on this rank or above.
+        let mut r = rank;
+        while r <= 8 {
+            rank_mask |= RANK_MASK[(r - 1) as usize];
+            r += 1;
+        }
+    }
+
+    ADJACENT_FILE_MASKS[file_i] & rank_mask
+}
+
+const fn generate_backward_pawn_masks() -> [[u64; 64]; 2] {
+    let mut masks = [[0u64; 64]; 2];
+    let mut sq = 0;
+    while sq < 64 {
+        masks[0][sq as usize] = backward_pawn_mask(false, sq);
+        masks[1][sq as usize] = backward_pawn_mask(true, sq);
+        sq += 1;
+    }
+    masks
+}
+
+// only meaningful for pawns that aren't isolated - callers should skip this check otherwise.
+pub fn pawn_backward(sq_i: u8, color: bool, board: &ChessBoard) -> bool {
+    let friendly_pawns: u64 = if color {
+        board.white_pieces & board.pawns
+    } else {
+        board.black_pieces & board.pawns
+    };
+    let support_mask: u64 = if color {
+        BACKWARD_PAWN_MASKS[1][sq_i as usize]
+    } else {
+        BACKWARD_PAWN_MASKS[0][sq_i as usize]
+    };
+    if support_mask & friendly_pawns != 0 {
+        return false;
+    }
+
+    // the stop square (directly ahead for white, directly behind for black). indexing the
+    // same-color pawn attack table at this square gives exactly the squares an opposing pawn
+    // would need to stand on to control it, since that pattern is the mirror of the opposing
+    // color's attack pattern.
+    let stop_sq_i = if color { sq_i + 8 } else { sq_i - 8 };
+    let attacker_mask: u64 = if color {
+        WHITE_PAWN_ATTACKS[stop_sq_i as usize]
+    } else {
+        BLACK_PAWN_ATTACKS[stop_sq_i as usize]
+    };
+    let opponent_pawns: u64 = if color {
+        board.black_pieces & board.pawns
+    } else {
+        board.white_pieces & board.pawns
+    };
+    attacker_mask & opponent_pawns != 0
 }
 
 // higher is more relevant. depth alone when age matches (age_diff == 0); penalized per move of staleness otherwise.

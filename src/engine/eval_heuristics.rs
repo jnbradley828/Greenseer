@@ -12,6 +12,10 @@ pub const EG_BISHOP_PAIR_BONUS: i16 = 50;
 pub const MOBILITY_BONUS: [i16; 4] = [4, 3, 2, 1]; // knight, bishop, rook, queen
 pub const MG_DOUBLED_PAWN_PENALTY: i16 = 10;
 pub const EG_DOUBLED_PAWN_PENALTY: i16 = 20;
+pub const MG_ISOLATED_PAWN_PENALTY: i16 = 10;
+pub const EG_ISOLATED_PAWN_PENALTY: i16 = 20;
+pub const MG_BACKWARD_PAWN_PENALTY: i16 = 8;
+pub const EG_BACKWARD_PAWN_PENALTY: i16 = 15;
 // ranks 2-6 (white) / 7-3 (black). rank 7/2 (guaranteed passed - no enemy pawn can ever
 // occupy rank 8/1) is baked directly into MG_PAWN_MOD/EG_PAWN_MOD's rank 7 row instead,
 // since every pawn there is passed by definition and doesn't need a separate check.

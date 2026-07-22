@@ -1,6 +1,6 @@
 use crate::engine::eval_heuristics::*;
 use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
-use crate::engine::utils::pawn_passed;
+use crate::engine::utils::{pawn_backward, pawn_isolated, pawn_passed};
 use oxi_chess_lib;
 use oxi_chess_lib::board::ChessBoard;
 use oxi_chess_lib::magic_tables::ROOK_ATTACKS;
@@ -396,6 +396,13 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
                     mg_modifier += MG_PASSED_PAWN_BONUS[idx];
                     eg_modifier += EG_PASSED_PAWN_BONUS[idx];
                 }
+                if pawn_isolated(i as u8, true, board) {
+                    mg_modifier -= MG_ISOLATED_PAWN_PENALTY;
+                    eg_modifier -= EG_ISOLATED_PAWN_PENALTY;
+                } else if pawn_backward(i as u8, true, board) {
+                    mg_modifier -= MG_BACKWARD_PAWN_PENALTY;
+                    eg_modifier -= EG_BACKWARD_PAWN_PENALTY;
+                }
             }
             if piece_type == 3 {
                 let file_i = (oxi_chess_lib::utils::file_value(1u64 << i) - 1) as usize;
@@ -430,6 +437,13 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
                     let idx = (7 - rank) as usize;
                     mg_modifier -= MG_PASSED_PAWN_BONUS[idx];
                     eg_modifier -= EG_PASSED_PAWN_BONUS[idx];
+                }
+                if pawn_isolated(i as u8, false, board) {
+                    mg_modifier += MG_ISOLATED_PAWN_PENALTY;
+                    eg_modifier += EG_ISOLATED_PAWN_PENALTY;
+                } else if pawn_backward(i as u8, false, board) {
+                    mg_modifier += MG_BACKWARD_PAWN_PENALTY;
+                    eg_modifier += EG_BACKWARD_PAWN_PENALTY;
                 }
             }
             if piece_type == 3 {
