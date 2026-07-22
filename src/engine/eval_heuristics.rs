@@ -2,6 +2,7 @@ pub const PIECE_VALUES: [i16; 5] = [100, 300, 300, 500, 900]; // [p, n, b, r, q]
 pub const MAX_MAJOR_PIECE_MATERIAL: i16 =
     2 * (PIECE_VALUES[1] * 2) + (PIECE_VALUES[2] * 2) + (PIECE_VALUES[3] * 2 + PIECE_VALUES[4]);
 
+pub const TT_AGE_FACTOR: i16 = 2;
 pub const EARLY_QUEEN_FACTOR: i16 = 10;
 pub const OPEN_FILE_ROOK: i16 = 20;
 pub const SEMIOPEN_FILE_ROOK: i16 = 10;
@@ -11,6 +12,11 @@ pub const EG_BISHOP_PAIR_BONUS: i16 = 50;
 pub const MOBILITY_BONUS: [i16; 4] = [4, 3, 2, 1]; // knight, bishop, rook, queen
 pub const MG_DOUBLED_PAWN_PENALTY: i16 = 10;
 pub const EG_DOUBLED_PAWN_PENALTY: i16 = 20;
+// ranks 2-6 (white) / 7-3 (black). rank 7/2 (guaranteed passed - no enemy pawn can ever
+// occupy rank 8/1) is baked directly into MG_PAWN_MOD/EG_PAWN_MOD's rank 7 row instead,
+// since every pawn there is passed by definition and doesn't need a separate check.
+pub const MG_PASSED_PAWN_BONUS: [i16; 5] = [0, 5, 10, 20, 35];
+pub const EG_PASSED_PAWN_BONUS: [i16; 5] = [0, 10, 20, 40, 65];
 
 #[rustfmt::skip]
 pub const MG_PAWN_MOD: [i8; 64] = [
@@ -20,7 +26,7 @@ pub const MG_PAWN_MOD: [i8; 64] = [
     0,   0,  20,  22,  22,  20,   0,   0,   // rank 4
     5,   5,  15,  25,  25,  15,   5,   5,   // rank 5
    10,  10,  20,  30,  30,  20,  10,  10,   // rank 6
-   50,  50,  50,  50,  50,  50,  50,  50,   // rank 7
+   60,  60,  60,  60,  60,  60,  60,  60,   // rank 7 (includes guaranteed-passed bonus)
     0,   0,   0,   0,   0,   0,   0,   0    // rank 8
 ];
 
@@ -92,7 +98,7 @@ pub const EG_PAWN_MOD: [i8; 64] = [
     5,   5,   5,   5,   5,   5,   5,   5,
    15,  15,  15,  15,  15,  15,  15,  15,
    30,  30,  30,  30,  30,  30,  30,  30,
-   55,  60,  60,  60,  60,  60,  60,  55,
+   95, 100, 100, 100, 100, 100, 100,  95,   // rank 7 (includes guaranteed-passed bonus)
     0,   0,   0,   0,   0,   0,   0,   0
 ];
 

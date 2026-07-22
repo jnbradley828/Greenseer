@@ -1,5 +1,6 @@
 use crate::engine::eval_heuristics::*;
 use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
+use crate::engine::utils::pawn_passed;
 use oxi_chess_lib;
 use oxi_chess_lib::board::ChessBoard;
 use oxi_chess_lib::magic_tables::ROOK_ATTACKS;
@@ -386,6 +387,24 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
                 };
                 mobility_score += num_attacks * mobility_factor;
             }
+            if piece_type == 0 {
+                let rank = oxi_chess_lib::utils::rank_value(1u64 << i);
+                // rank 7 is always passed (no pawn can ever reach rank 8 to block it) and its
+                // bonus is baked into MG_PAWN_MOD/EG_PAWN_MOD's rank 7 row instead.
+                if rank < 7 && pawn_passed(i as u8, true, board) {
+                    let idx = (rank - 2) as usize;
+                    mg_modifier += MG_PASSED_PAWN_BONUS[idx];
+                    eg_modifier += EG_PASSED_PAWN_BONUS[idx];
+                }
+            }
+            if piece_type == 3 {
+                let file_i = (oxi_chess_lib::utils::file_value(1u64 << i) - 1) as usize;
+                if FILE_MASK[file_i] & board.pawns == 0 {
+                    mg_modifier += OPEN_FILE_ROOK;
+                } else if FILE_MASK[file_i] & (board.pawns & board.white_pieces) == 0 {
+                    mg_modifier += SEMIOPEN_FILE_ROOK;
+                }
+            }
         }
     } else {
         while mbb != 0 {
@@ -403,6 +422,24 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
                 };
                 mobility_score -= num_attacks * mobility_factor;
             }
+            if piece_type == 0 {
+                let rank = oxi_chess_lib::utils::rank_value(1u64 << i);
+                // rank 2 is always passed (no pawn can ever reach rank 1 to block it) and its
+                // bonus is baked into MG_PAWN_MOD/EG_PAWN_MOD's rank 7 row instead.
+                if rank > 2 && pawn_passed(i as u8, false, board) {
+                    let idx = (7 - rank) as usize;
+                    mg_modifier -= MG_PASSED_PAWN_BONUS[idx];
+                    eg_modifier -= EG_PASSED_PAWN_BONUS[idx];
+                }
+            }
+            if piece_type == 3 {
+                let file_i = (oxi_chess_lib::utils::file_value(1u64 << i) - 1) as usize;
+                if FILE_MASK[file_i] & board.pawns == 0 {
+                    mg_modifier -= OPEN_FILE_ROOK;
+                } else if FILE_MASK[file_i] & (board.pawns & board.black_pieces) == 0 {
+                    mg_modifier -= SEMIOPEN_FILE_ROOK;
+                }
+            }
         }
     }
 
@@ -419,7 +456,7 @@ pub fn unsigned_evaluate(game: &oxi_chess_lib::game::ChessGame, max_side: bool) 
 }
 
 // FILE_MASK[0] = a file.
-const FILE_MASK: [u64; 8] = [
+pub const FILE_MASK: [u64; 8] = [
     0x0101010101010101,
     0x0202020202020202,
     0x0404040404040404,
@@ -428,6 +465,17 @@ const FILE_MASK: [u64; 8] = [
     0x2020202020202020,
     0x4040404040404040,
     0x8080808080808080,
+];
+
+pub const RANK_MASK: [u64; 8] = [
+    0x00000000000000FF,
+    0x000000000000FF00,
+    0x0000000000FF0000,
+    0x00000000FF000000,
+    0x000000FF00000000,
+    0x0000FF0000000000,
+    0x00FF000000000000,
+    0xFF00000000000000,
 ];
 
 #[cfg(test)]

@@ -1,5 +1,11 @@
 use std::sync::atomic::Ordering;
 
+use oxi_chess_lib::board::ChessBoard;
+use oxi_chess_lib::utils::rank_value;
+
+use crate::engine::eval;
+use crate::engine::eval::{FILE_MASK, RANK_MASK};
+use crate::engine::eval_heuristics::TT_AGE_FACTOR;
 use crate::engine::search::TT;
 
 // tt slot is (full 64-bit zobrist key, packed data word).
@@ -12,8 +18,77 @@ use crate::engine::search::TT;
 pub const TT_EXACT_FLAG: u8 = 0;
 pub const TT_LOWERB_FLAG: u8 = 1;
 pub const TT_UPPERB_FLAG: u8 = 2;
-const TT_AGE_FACTOR: i16 = 2;
 pub const MATE_THRESHOLD: i16 = 9000;
+pub const PASSED_PAWN_MASKS: [[u64; 64]; 2] = generate_passed_pawns_masks();
+
+// returns a mask for the squares to check for opposing pawns to see if your pawn is passed.
+const fn passed_pawn_mask(color: bool, sq_i: u8) -> u64 {
+    let sq: u64 = 1 << sq_i;
+    let file = oxi_chess_lib::utils::file_value(sq);
+    let rank = oxi_chess_lib::utils::rank_value(sq);
+
+    let file_mask: u64;
+    match file {
+        1 => file_mask = FILE_MASK[0] | FILE_MASK[1],
+        2 => file_mask = FILE_MASK[0] | FILE_MASK[1] | FILE_MASK[2],
+        3 => file_mask = FILE_MASK[1] | FILE_MASK[2] | FILE_MASK[3],
+        4 => file_mask = FILE_MASK[2] | FILE_MASK[3] | FILE_MASK[4],
+        5 => file_mask = FILE_MASK[3] | FILE_MASK[4] | FILE_MASK[5],
+        6 => file_mask = FILE_MASK[4] | FILE_MASK[5] | FILE_MASK[6],
+        7 => file_mask = FILE_MASK[5] | FILE_MASK[6] | FILE_MASK[7],
+        8 => file_mask = FILE_MASK[6] | FILE_MASK[7],
+        _ => file_mask = 0,
+    }
+
+    let mut rank_mask: u64 = 0;
+    if color {
+        let mut rank = rank;
+        while rank < 8 {
+            rank_mask |= RANK_MASK[rank as usize];
+            rank += 1;
+        }
+    } else {
+        let max_rank = rank - 1;
+        let mut rank = 1;
+        while rank < max_rank {
+            rank_mask |= RANK_MASK[rank as usize];
+            rank += 1;
+        }
+    }
+
+    file_mask & rank_mask
+}
+
+const fn generate_passed_pawns_masks() -> [[u64; 64]; 2] {
+    let mut passed_pawn_masks = [[0u64; 64]; 2];
+
+    let mut sq = 0;
+    while sq < 64 {
+        passed_pawn_masks[0][sq as usize] = passed_pawn_mask(false, sq);
+        passed_pawn_masks[1][sq as usize] = passed_pawn_mask(true, sq);
+        sq += 1;
+    }
+
+    passed_pawn_masks
+}
+
+pub fn pawn_passed(sq_i: u8, color: bool, board: &ChessBoard) -> bool {
+    let passer_defender_mask: u64 = if color {
+        PASSED_PAWN_MASKS[1][sq_i as usize]
+    } else {
+        PASSED_PAWN_MASKS[0][sq_i as usize]
+    };
+    let opponent_pawns: u64 = if color {
+        board.black_pieces & board.pawns
+    } else {
+        board.white_pieces & board.pawns
+    };
+    if passer_defender_mask & opponent_pawns == 0 {
+        true
+    } else {
+        false
+    }
+}
 
 // higher is more relevant. depth alone when age matches (age_diff == 0); penalized per move of staleness otherwise.
 pub fn relevance_score(depth: u8, entry_age: u8, current_age: u8) -> i16 {
