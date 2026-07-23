@@ -28,6 +28,8 @@ pub fn iteratively_deepen(
     state
         .best_move
         .store(game.legal_moves[0], Ordering::Relaxed);
+    // persists (and accumulates) across all depth iterations of this search, not reset per depth.
+    let mut killers = search::KillerTable::new();
 
     for d in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
@@ -44,6 +46,7 @@ pub fn iteratively_deepen(
                 false,
                 search::MAX_QDEPTH,
                 tt,
+                &mut killers,
                 0,
                 age,
             );
@@ -441,6 +444,7 @@ mod tests {
                 false,
                 search::MAX_QDEPTH,
                 &mut tt,
+                &mut search::KillerTable::new(),
                 0,
                 0,
             )
@@ -466,6 +470,7 @@ mod tests {
                 false,
                 search::MAX_QDEPTH,
                 &mut tt,
+                &mut search::KillerTable::new(),
                 0,
                 0,
             )
@@ -491,6 +496,7 @@ mod tests {
                 false,
                 search::MAX_QDEPTH,
                 &mut tt,
+                &mut search::KillerTable::new(),
                 0,
                 0,
             )
@@ -516,6 +522,7 @@ mod tests {
                 false,
                 search::MAX_QDEPTH,
                 &mut tt,
+                &mut search::KillerTable::new(),
                 0,
                 0,
             )

@@ -51,6 +51,39 @@ impl TT {
 }
 
 pub const MAX_QDEPTH: u8 = 6;
+// 2 killer (quiet, cutoff-causing) moves per ply. sized to 255 (not 256) since ply is a u8 and
+// ply 0 (the root - it has no siblings, so a killer stored there could never be read by
+// anyone) is excluded from storage. the ply -> index mapping is encapsulated here rather than
+// duplicated at each call site.
+pub struct KillerTable([[Option<u16>; 2]; 255]);
+
+impl KillerTable {
+    pub fn new() -> Self {
+        Self([[None; 2]; 255])
+    }
+
+    // both killers at this ply (primary first). empty for ply == 0.
+    pub fn get(&self, ply: u8) -> [Option<u16>; 2] {
+        if ply == 0 {
+            [None, None]
+        } else {
+            self.0[(ply - 1) as usize]
+        }
+    }
+
+    // records a cutoff-causing quiet move, shifting the existing primary killer to secondary.
+    // no-op for ply == 0, and for a move that's already this ply's primary killer.
+    pub fn store(&mut self, ply: u8, mv: u16) {
+        if ply == 0 {
+            return;
+        }
+        let slot = &mut self.0[(ply - 1) as usize];
+        if slot[0] != Some(mv) {
+            slot[1] = slot[0];
+            slot[0] = Some(mv);
+        }
+    }
+}
 // negamax formulation: every node's returned score is from the perspective of whoever is to
 // move AT THAT NODE (positive = good for the current mover), not a fixed global side. a
 // recursive call that actually makes a move negates the returned score and swaps alpha/beta
@@ -68,6 +101,7 @@ pub fn negamax(
     check_extension: bool,
     qdepth: u8,
     tt: &mut TT,
+    killers: &mut KillerTable,
     ply: u8,
     age: u8,
 ) -> (i16, u16, u64) {
@@ -127,7 +161,7 @@ pub fn negamax(
         // board/side, so no negation or alpha/beta swap.
         if rules::is_check(&game.board, game.board.side_to_move) {
             return negamax(
-                game, 1, alpha, beta, state, false, true, qdepth, tt, ply, age,
+                game, 1, alpha, beta, state, false, true, qdepth, tt, killers, ply, age,
             );
         } else {
             // quiescence search: continue search until all captures are complete.
@@ -150,6 +184,7 @@ pub fn negamax(
                     false,
                     qdepth - 1,
                     tt,
+                    killers,
                     ply,
                     age,
                 );
@@ -164,18 +199,14 @@ pub fn negamax(
         }
     } else {
         // generate once per node, right where it's actually needed - reorder in place (no
-        // clone of the move list) using the tt move if we have one, otherwise the usual
-        // check/capture-first heuristic (skipped during quiescence/check-extension, which are
-        // already restricted to a small, targeted move set).
+        // clone of the move list), folding in the tt move and this ply's killers if any exist,
+        // on top of the usual capture/check-first heuristic. skipped entirely during
+        // quiescence/check-extension, which are already restricted to a small, targeted move
+        // set - not worth the classification cost reorder_moves always pays regardless of
+        // what's passed in.
         let mut legal_moves: ArrayVec<u16, 256> = get_legal_moves(&mut game.board);
-        if let Some(mv) = tt_move {
-            reorder_moves(
-                &game.board,
-                &mut legal_moves,
-                &mut ArrayVec::from_iter([mv]),
-            );
-        } else if !quiescence && !check_extension {
-            reorder_moves(&game.board, &mut legal_moves, &mut ArrayVec::new());
+        if !quiescence && !check_extension {
+            reorder_moves(&game.board, &mut legal_moves, tt_move, killers.get(ply));
         }
 
         let mut alpha = alpha;
@@ -204,6 +235,7 @@ pub fn negamax(
                 false,
                 qdepth,
                 tt,
+                killers,
                 ply + 1,
                 age,
             );
@@ -219,6 +251,11 @@ pub fn negamax(
             }
             if alpha >= beta {
                 cutoff = true;
+                // board is back to the pre-move position here (unmake already ran above), which
+                // is exactly what move_gives_check needs.
+                if !is_capture(movei) && !move_gives_check(&game.board, movei) {
+                    killers.store(ply, movei);
+                }
                 break;
             }
         }
@@ -247,36 +284,53 @@ pub fn negamax(
     }
 }
 
+// orders legal_moves in place: tt best move, then captures, then checks, then killer moves,
+// then everything else untouched. best_move/killer_moves entries not actually legal here (a
+// killer is ply-indexed, not position-indexed, so it can carry over from a different position
+// that shared this ply) are silently skipped.
 pub fn reorder_moves(
     board: &ChessBoard,
     legal_moves: &mut ArrayVec<u16, 256>,
-    promising_moves: &mut ArrayVec<u16, 256>,
+    best_move: Option<u16>,
+    killer_moves: [Option<u16>; 2],
 ) -> () {
-    let mut checks: ArrayVec<u16, 256> = ArrayVec::new();
+    let mut ordered: ArrayVec<u16, 256> = ArrayVec::new();
     let mut captures: ArrayVec<u16, 256> = ArrayVec::new();
-    for &mv in legal_moves.iter() {
-        if promising_moves.contains(&mv) {
-            continue;
-        } else {
-            if move_gives_check(board, mv) {
-                checks.push(mv)
-            } else if is_capture(mv) {
-                captures.push(mv);
-            }
-        }
-    }
-    promising_moves.extend(checks);
-    promising_moves.extend(captures);
+    let mut checks: ArrayVec<u16, 256> = ArrayVec::new();
+    let mut rest: ArrayVec<u16, 256> = ArrayVec::new();
 
-    // put promising moves from last depth in the front!
-    let mut front = 0;
-    for i in 0..promising_moves.len() {
-        if let Some(j) = legal_moves[front..]
-            .iter()
-            .position(|m| m == &promising_moves[i])
+    if let Some(mv) = best_move
+        && legal_moves.contains(&mv)
+    {
+        ordered.push(mv);
+    }
+
+    for &mv in legal_moves.iter() {
+        if Some(mv) == best_move {
+            continue;
+        } else if is_capture(mv) {
+            // cheap flag check first - only pay for the pricier check test below on moves that
+            // aren't already captures (a move that's both is treated as a capture).
+            captures.push(mv);
+        } else if move_gives_check(board, mv) {
+            checks.push(mv);
+        } else if !killer_moves.contains(&Some(mv)) {
+            rest.push(mv);
+        }
+        // else: quiet, non-checking, and a stored killer - placed in the killer pass below.
+    }
+    ordered.extend(captures);
+    ordered.extend(checks);
+
+    for killer in killer_moves {
+        if let Some(mv) = killer
+            && legal_moves.contains(&mv)
+            && !ordered.contains(&mv)
         {
-            legal_moves.swap(front, j + front);
-            front += 1;
+            ordered.push(mv);
         }
     }
+    ordered.extend(rest);
+
+    *legal_moves = ordered;
 }
