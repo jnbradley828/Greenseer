@@ -37,7 +37,7 @@ else
         -config outname=benches/tournament_configs/${TIMESTAMP}_quick.json \
         -concurrency 2 \
         -log engine=false \
-        -pgnout file=benches/results/pgn/vs_main_middlegames/${TIMESTAMP}_quick.pgn notation=uci nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
+        -pgnout file=benches/results/pgn/vs_main_middlegames/${TIMESTAMP}_quick.pgn notation=san nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
         -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/test_suites/UHO_Lichess_4852_v1.epd format=epd order=random -repeat \
         | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/results/vs_main_middlegames/${TIMESTAMP}_quick.txt
 fi

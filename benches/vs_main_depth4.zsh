@@ -37,7 +37,7 @@ else
         -config outname=benches/tournament_configs/${TIMESTAMP}.json \
         -concurrency 2 \
         -log engine=false \
-        -pgnout file=benches/diagnostics/pgn/vs_main_depth4/${TIMESTAMP}.pgn notation=uci nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
+        -pgnout file=benches/diagnostics/pgn/vs_main_depth4/${TIMESTAMP}.pgn notation=san nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
         | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/diagnostics/vs_main_depth4/${TIMESTAMP}.txt
 fi
 
