@@ -1,5 +1,5 @@
 use crate::engine::eval_heuristics::*;
-use crate::engine::search::{self, SearchState, TT, minimax, reorder_moves};
+use crate::engine::search::{self, SearchState, TT, negamax, reorder_moves};
 use crate::engine::utils::{pawn_backward, pawn_isolated, pawn_passed};
 use oxi_chess_lib;
 use oxi_chess_lib::board::ChessBoard;
@@ -13,78 +13,6 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
-
-// returns (best move encoded as u16, score of said move, nodes searched, runner_ups)
-// DEPRECATED: MOVED LOGIC TO minimax() IN search.rs
-pub fn best_move(
-    game: &mut oxi_chess_lib::game::ChessGame,
-    depth: u8,
-    state: Arc<SearchState>,
-    tt: &mut TT,
-    age: u8,
-) -> (u16, i16, u64, VecDeque<u16>) {
-    let mut best_move = game.legal_moves[0];
-    const RUNNER_UPS_MAX: usize = 2;
-    let legal_moves = game.legal_moves.clone();
-    let mut runner_ups = VecDeque::with_capacity(RUNNER_UPS_MAX);
-    _ = game.make_move(legal_moves[0], true, true);
-    let mut nodes: u64 = 0;
-    let (mut alpha, _, m_nodes) = minimax(
-        game,
-        depth - 1,
-        !game.board.side_to_move,
-        i16::MIN,
-        i16::MAX,
-        Arc::clone(&state),
-        false,
-        false,
-        search::MAX_QDEPTH,
-        tt,
-        1,
-        age,
-    );
-    nodes += m_nodes;
-    _ = game.unmake_move(false);
-
-    let remaining_moves: Vec<u16> = legal_moves[1..].to_vec();
-    for movei in remaining_moves {
-        if state.stop.load(Ordering::Relaxed) {
-            return (
-                state.best_move.load(Ordering::Relaxed),
-                alpha,
-                nodes,
-                runner_ups,
-            );
-        }
-        _ = game.make_move(movei, true, true);
-        let (eval, _, m_nodes) = minimax(
-            game,
-            depth - 1,
-            !game.board.side_to_move,
-            alpha,
-            i16::MAX,
-            Arc::clone(&state),
-            false,
-            false,
-            search::MAX_QDEPTH,
-            tt,
-            1,
-            age,
-        );
-        nodes += m_nodes;
-        _ = game.unmake_move(false);
-        if eval > alpha {
-            if runner_ups.len() == RUNNER_UPS_MAX {
-                runner_ups.pop_front();
-            }
-            runner_ups.push_back(best_move);
-            alpha = eval;
-            best_move = movei;
-        }
-    }
-    game.legal_moves = legal_moves;
-    return (best_move, alpha, nodes, runner_ups);
-}
 
 pub fn iteratively_deepen(
     game: &mut oxi_chess_lib::game::ChessGame,
@@ -106,11 +34,10 @@ pub fn iteratively_deepen(
             return state.best_move.load(Ordering::Relaxed);
         } else {
             let legal_moves = game.legal_moves.clone();
-            let (score, best_move, dnodes) = minimax(
+            let (score, best_move, dnodes) = negamax(
                 game,
                 d,
-                game.board.side_to_move,
-                i16::MIN,
+                -i16::MAX,
                 i16::MAX,
                 Arc::clone(&state),
                 false,
@@ -120,7 +47,6 @@ pub fn iteratively_deepen(
                 0,
                 age,
             );
-            // let (best_move, score, dnodes, runner_ups) = best_move(game, d, Arc::clone(&state), tt, age);
             nodes += dnodes;
             let best_uci = decode_to_uci(best_move).unwrap();
             if !state.stop.load(Ordering::Relaxed) {
@@ -181,7 +107,7 @@ fn count_material(game: &oxi_chess_lib::game::ChessGame, pawns: bool, total: boo
 
 // returns objective static evaluation.
 pub fn evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
-    // evaluates WITHOUT future calculation. use minimax to calculate at depth.
+    // evaluates WITHOUT future calculation. use negamax to calculate at depth.
     let mut eval: i16 = 0;
     let net_material = count_material(game, true, false);
     let total_material = count_material(game, true, true);
@@ -460,9 +386,9 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
     return (mg_modifier, eg_modifier, mobility_score);
 }
 
-// returns score for argument max_side (true = white)
-pub fn unsigned_evaluate(game: &oxi_chess_lib::game::ChessGame, max_side: bool) -> i16 {
-    if max_side {
+// returns score from the perspective of the side currently to move (positive = good for them).
+pub fn relative_evaluate(game: &oxi_chess_lib::game::ChessGame) -> i16 {
+    if game.board.side_to_move {
         return evaluate(game);
     } else {
         return -evaluate(game);
@@ -505,7 +431,20 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
+            negamax(
+                &mut game,
+                1,
+                -i16::MAX,
+                i16::MAX,
+                Arc::new(SearchState::new()),
+                false,
+                false,
+                search::MAX_QDEPTH,
+                &mut tt,
+                0,
+                0,
+            )
+            .1,
         )
         .unwrap();
         assert_eq!(best_move_uci, "h7h8q".to_string());
@@ -517,7 +456,20 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
+            negamax(
+                &mut game,
+                1,
+                -i16::MAX,
+                i16::MAX,
+                Arc::new(SearchState::new()),
+                false,
+                false,
+                search::MAX_QDEPTH,
+                &mut tt,
+                0,
+                0,
+            )
+            .1,
         )
         .unwrap();
         assert!(best_move_uci == "b6b7".to_string() || best_move_uci == "b6a7".to_string());
@@ -529,7 +481,20 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
+            negamax(
+                &mut game,
+                1,
+                -i16::MAX,
+                i16::MAX,
+                Arc::new(SearchState::new()),
+                false,
+                false,
+                search::MAX_QDEPTH,
+                &mut tt,
+                0,
+                0,
+            )
+            .1,
         )
         .unwrap();
         assert_eq!(best_move_uci, "d1d5".to_string());
@@ -541,7 +506,20 @@ mod tests {
         );
         let mut tt = TT::new(128);
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
-            best_move(&mut game, 1, Arc::new(SearchState::new()), &mut tt, 0).0,
+            negamax(
+                &mut game,
+                1,
+                -i16::MAX,
+                i16::MAX,
+                Arc::new(SearchState::new()),
+                false,
+                false,
+                search::MAX_QDEPTH,
+                &mut tt,
+                0,
+                0,
+            )
+            .1,
         )
         .unwrap();
         assert_eq!(best_move_uci, "d8d1".to_string());

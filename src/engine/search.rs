@@ -13,7 +13,7 @@ use oxi_chess_lib::{
 use crate::engine::utils::{
     from_tt_score, is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
 };
-use crate::engine::{self, eval::unsigned_evaluate};
+use crate::engine::{self, eval::relative_evaluate};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 
@@ -51,15 +51,16 @@ impl TT {
 }
 
 pub const MAX_QDEPTH: u8 = 6;
-// depth first search tree where you maximize your score and minimize opponent score at each node.
+// negamax formulation: every node's returned score is from the perspective of whoever is to
+// move AT THAT NODE (positive = good for the current mover), not a fixed global side. a
+// recursive call that actually makes a move negates the returned score and swaps alpha/beta
+// into (-beta, -alpha); a call that doesn't move (check-extension/quiescence dispatch) does
+// neither, since the side to move hasn't changed.
 // returns (position eval, nodes visited) **pruned nodes are not counted**
-// for ease of iterating, just leaving this function name as minimax even though it will be iterated.
-// max_side = true means evaluate for white, false means evaluate for black.
 // quiescence search means search until no more captures are available and position is not check, even if depth expires.
-pub fn minimax(
+pub fn negamax(
     game: &mut ChessGame,
     depth: u8,
-    max_side: bool,
     alpha: i16,
     beta: i16,
     state: Arc<SearchState>,
@@ -74,12 +75,9 @@ pub fn minimax(
     if game.result != GameResult::InProgress {
         // if game is over in this position
         if !matches!(game.result, GameResult::Draw(_)) {
-            // if checkmate
-            if max_side != game.board.side_to_move {
-                return (10000 - ply as i16, 0, nodes);
-            } else {
-                return (-10000 + ply as i16, 0, nodes);
-            }
+            // checkmate is always bad for whoever is to move (they have no moves and are in
+            // check) - discounted by ply to prefer faster mates.
+            return (ply as i16 - 10000, 0, nodes);
         } else {
             return (0, 0, nodes);
         }
@@ -125,30 +123,26 @@ pub fn minimax(
     // pay to generate one.
 
     if depth == 0 {
-        // check extension: if the position is check: search depth 1.
+        // check extension: if the position is check: search depth 1. no move made - same
+        // board/side, so no negation or alpha/beta swap.
         if rules::is_check(&game.board, game.board.side_to_move) {
-            return minimax(
-                game, 1, max_side, alpha, beta, state, false, true, qdepth, tt, ply, age,
+            return negamax(
+                game, 1, alpha, beta, state, false, true, qdepth, tt, ply, age,
             );
         } else {
             // quiescence search: continue search until all captures are complete.
-            let stand_pat_eval = (unsigned_evaluate(game, max_side), nodes).0;
-            if max_side == game.board.side_to_move {
-                if stand_pat_eval >= beta {
-                    return (stand_pat_eval, 0, nodes);
-                }
-            } else {
-                if stand_pat_eval <= alpha {
-                    return (stand_pat_eval, 0, nodes);
-                }
+            let stand_pat_eval = relative_evaluate(game);
+            if stand_pat_eval >= beta {
+                return (stand_pat_eval, 0, nodes);
             }
             if qdepth == 0 {
                 return (stand_pat_eval, 0, nodes);
             } else {
-                let (q_eval, mv, q_nodes) = minimax(
+                // no move made here either (same position, just now searching captures only) -
+                // no negation or swap.
+                let (q_eval, mv, q_nodes) = negamax(
                     game,
                     1,
-                    max_side,
                     alpha,
                     beta,
                     state,
@@ -160,20 +154,11 @@ pub fn minimax(
                     age,
                 );
                 nodes += q_nodes;
-                if max_side == game.board.side_to_move {
-                    // maximizing node: stand_pat is a floor
-                    if q_eval.max(stand_pat_eval) == stand_pat_eval {
-                        return (stand_pat_eval, 0, nodes);
-                    } else {
-                        return (q_eval, mv, nodes);
-                    }
+                // stand_pat is a floor: a quiet position is never worse than not capturing.
+                if q_eval > stand_pat_eval {
+                    return (q_eval, mv, nodes);
                 } else {
-                    // minimizing node: stand_pat is a ceiling
-                    if q_eval.min(stand_pat_eval) == stand_pat_eval {
-                        return (stand_pat_eval, 0, nodes);
-                    } else {
-                        return (q_eval, mv, nodes);
-                    }
+                    return (stand_pat_eval, 0, nodes);
                 }
             }
         }
@@ -193,136 +178,72 @@ pub fn minimax(
             reorder_moves(&game.board, &mut legal_moves, &mut ArrayVec::new());
         }
 
-        if max_side == game.board.side_to_move {
-            let mut alpha = alpha;
-            let alpha_orig = alpha;
-            let mut max_eval = i16::MIN;
-            let mut cutoff = false;
-            let mut best_move = legal_moves[0];
-            for movei in legal_moves {
-                if state.stop.load(Ordering::Relaxed) {
-                    return (0, best_move, nodes);
-                }
-                if quiescence && !is_capture(movei) {
-                    // if quiescence only search: skip non captures.
-                    continue;
-                }
-                _ = game.make_move(movei, false, true);
-                let (eval, _, child_nodes) = minimax(
-                    game,
-                    depth - 1,
-                    max_side,
-                    alpha,
-                    beta,
-                    Arc::clone(&state),
-                    false,
-                    false,
-                    qdepth,
-                    tt,
-                    ply + 1,
-                    age,
-                );
-                nodes += child_nodes;
-                _ = game.unmake_move(false);
-                if eval > max_eval {
-                    max_eval = eval;
-                    best_move = movei;
-                }
-                if max_eval > alpha {
-                    alpha = max_eval
-                }
-                if alpha >= beta {
-                    cutoff = true;
-                    break;
-                }
+        let mut alpha = alpha;
+        let alpha_orig = alpha;
+        let mut best_eval = -i16::MAX;
+        let mut cutoff = false;
+        let mut best_move = legal_moves[0];
+        for movei in legal_moves {
+            if state.stop.load(Ordering::Relaxed) {
+                return (0, best_move, nodes);
             }
-
-            // tt update logic — 3-way classification
-            if !(quiescence || check_extension) {
-                let flag = if cutoff {
-                    engine::utils::TT_LOWERB_FLAG // fail-high: beta cutoff
-                } else if max_eval <= alpha_orig {
-                    engine::utils::TT_UPPERB_FLAG // fail-low: never beat alpha
-                } else {
-                    engine::utils::TT_EXACT_FLAG // landed strictly inside window
-                };
-                update_tt(
-                    tt,
-                    game.board.zobrist_hash,
-                    to_tt_score(max_eval, ply),
-                    depth,
-                    flag,
-                    best_move,
-                    age,
-                );
+            if quiescence && !is_capture(movei) {
+                // if quiescence only search: skip non captures.
+                continue;
             }
-
-            return (max_eval, best_move, nodes);
-        } else {
-            let mut beta = beta;
-            let beta_orig = beta;
-            let mut min_eval = i16::MAX;
-            let mut cutoff = false;
-            let mut best_move = legal_moves[0];
-            for movei in legal_moves {
-                if state.stop.load(Ordering::Relaxed) {
-                    return (0, best_move, nodes);
-                }
-                if quiescence && !is_capture(movei) {
-                    // if quiescence only search: skip non captures.
-                    continue;
-                }
-                _ = game.make_move(movei, false, true);
-                let (eval, _, child_nodes) = minimax(
-                    game,
-                    depth - 1,
-                    max_side,
-                    alpha,
-                    beta,
-                    Arc::clone(&state),
-                    false,
-                    false,
-                    qdepth,
-                    tt,
-                    ply + 1,
-                    age,
-                );
-                nodes += child_nodes;
-                _ = game.unmake_move(false);
-                if eval < min_eval {
-                    min_eval = eval;
-                    best_move = movei;
-                }
-                if min_eval < beta {
-                    beta = min_eval
-                }
-                if alpha >= beta {
-                    cutoff = true;
-                    break;
-                }
+            _ = game.make_move(movei, false, true);
+            // a move was actually made here - negate the child's score (it's from the
+            // opponent's perspective) and swap alpha/beta accordingly.
+            let (child_eval, _, child_nodes) = negamax(
+                game,
+                depth - 1,
+                -beta,
+                -alpha,
+                Arc::clone(&state),
+                false,
+                false,
+                qdepth,
+                tt,
+                ply + 1,
+                age,
+            );
+            let eval = -child_eval;
+            nodes += child_nodes;
+            _ = game.unmake_move(false);
+            if eval > best_eval {
+                best_eval = eval;
+                best_move = movei;
             }
-
-            // tt update logic — 3-way classification
-            if !(quiescence || check_extension) {
-                let flag = if cutoff {
-                    engine::utils::TT_UPPERB_FLAG // fail-low: alpha cutoff
-                } else if min_eval >= beta_orig {
-                    engine::utils::TT_LOWERB_FLAG // fail-high: never dropped below beta
-                } else {
-                    engine::utils::TT_EXACT_FLAG // landed strictly inside window
-                };
-                update_tt(
-                    tt,
-                    game.board.zobrist_hash,
-                    to_tt_score(min_eval, ply),
-                    depth,
-                    flag,
-                    best_move,
-                    age,
-                );
+            if best_eval > alpha {
+                alpha = best_eval;
             }
-            return (min_eval, best_move, nodes);
+            if alpha >= beta {
+                cutoff = true;
+                break;
+            }
         }
+
+        // tt update logic — 3-way classification
+        if !(quiescence || check_extension) {
+            let flag = if cutoff {
+                engine::utils::TT_LOWERB_FLAG // fail-high: beta cutoff
+            } else if best_eval <= alpha_orig {
+                engine::utils::TT_UPPERB_FLAG // fail-low: never beat alpha
+            } else {
+                engine::utils::TT_EXACT_FLAG // landed strictly inside window
+            };
+            update_tt(
+                tt,
+                game.board.zobrist_hash,
+                to_tt_score(best_eval, ply),
+                depth,
+                flag,
+                best_move,
+                age,
+            );
+        }
+
+        return (best_eval, best_move, nodes);
     }
 }
 
