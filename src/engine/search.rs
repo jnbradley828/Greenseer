@@ -1,5 +1,7 @@
+use arrayvec::ArrayVec;
 use oxi_chess_lib::{
     self,
+    board::ChessBoard,
     game::{
         ChessGame,
         GameResult::{self},
@@ -90,6 +92,7 @@ pub fn minimax(
         skip_tt = true;
     }
     // check tt before calculation logic
+    let mut tt_move: Option<u16> = None;
     if let Some(tt_entry) = retrieve_tt_or_none(tt, game.board.zobrist_hash)
         && !skip_tt
     {
@@ -113,17 +116,16 @@ pub fn minimax(
                 _ => {}
             }
         }
-        reorder_moves(game, &mut vec![tt_entry.4]);
-    } else if depth != 0 && (!quiescence && !check_extension) {
-        // don't reorder on quiescence search because we are already only checking captures & checks.
-        // to do: test if elo improves if we allow check extension reordering. is the overhead worth reordering a small list of moves?
-        reorder_moves(game, &mut vec![]);
+        tt_move = Some(tt_entry.4);
     }
+    // move generation and reordering are deferred to the depth != 0 branch below, right where
+    // the list is actually consumed - nothing above this point (game-over check, tt lookup,
+    // check-extension/quiescence dispatch) ever needs the move list, so nothing above it should
+    // pay to generate one.
 
     if depth == 0 {
         // check extension: if the position is check: search depth 1.
         if rules::is_check(&game.board, game.board.side_to_move) {
-            game.legal_moves = get_legal_moves(&mut game.board);
             return minimax(
                 game, 1, max_side, alpha, beta, state, false, true, qdepth, tt, ply, age,
             );
@@ -142,7 +144,6 @@ pub fn minimax(
             if qdepth == 0 {
                 return (stand_pat_eval, 0, nodes);
             } else {
-                game.legal_moves = get_legal_moves(&mut game.board);
                 let (q_eval, mv, q_nodes) = minimax(
                     game,
                     1,
@@ -176,13 +177,28 @@ pub fn minimax(
             }
         }
     } else {
+        // generate once per node, right where it's actually needed - reorder in place (no
+        // clone of the move list) using the tt move if we have one, otherwise the usual
+        // check/capture-first heuristic (skipped during quiescence/check-extension, which are
+        // already restricted to a small, targeted move set).
+        let mut legal_moves: ArrayVec<u16, 256> = get_legal_moves(&mut game.board);
+        if let Some(mv) = tt_move {
+            reorder_moves(
+                &game.board,
+                &mut legal_moves,
+                &mut ArrayVec::from_iter([mv]),
+            );
+        } else if !quiescence && !check_extension {
+            reorder_moves(&game.board, &mut legal_moves, &mut ArrayVec::new());
+        }
+
         if max_side == game.board.side_to_move {
             let mut alpha = alpha;
             let alpha_orig = alpha;
             let mut max_eval = i16::MIN;
             let mut cutoff = false;
-            let mut best_move = game.legal_moves[0];
-            for movei in game.legal_moves.clone() {
+            let mut best_move = legal_moves[0];
+            for movei in legal_moves {
                 if state.stop.load(Ordering::Relaxed) {
                     return (0, best_move, nodes);
                 }
@@ -190,8 +206,7 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                let gen_legal_moves = if depth == 1 { false } else { true };
-                _ = game.make_move(movei, gen_legal_moves, true);
+                _ = game.make_move(movei, false, true);
                 let (eval, _, child_nodes) = minimax(
                     game,
                     depth - 1,
@@ -247,8 +262,8 @@ pub fn minimax(
             let beta_orig = beta;
             let mut min_eval = i16::MAX;
             let mut cutoff = false;
-            let mut best_move = game.legal_moves[0];
-            for movei in game.legal_moves.clone() {
+            let mut best_move = legal_moves[0];
+            for movei in legal_moves {
                 if state.stop.load(Ordering::Relaxed) {
                     return (0, best_move, nodes);
                 }
@@ -256,8 +271,7 @@ pub fn minimax(
                     // if quiescence only search: skip non captures.
                     continue;
                 }
-                let gen_legal_moves = if depth == 1 { false } else { true };
-                _ = game.make_move(movei, gen_legal_moves, true);
+                _ = game.make_move(movei, false, true);
                 let (eval, _, child_nodes) = minimax(
                     game,
                     depth - 1,
@@ -311,24 +325,27 @@ pub fn minimax(
     }
 }
 
-pub fn reorder_moves(game: &mut ChessGame, promising_moves: &mut Vec<u16>) -> () {
-    let mut checks: Vec<u16> = Vec::new();
-    let mut captures: Vec<u16> = Vec::new();
-    let lgl_mvs_copy = game.legal_moves.clone();
-    for mv in lgl_mvs_copy {
+pub fn reorder_moves(
+    board: &ChessBoard,
+    legal_moves: &mut ArrayVec<u16, 256>,
+    promising_moves: &mut ArrayVec<u16, 256>,
+) -> () {
+    let mut checks: ArrayVec<u16, 256> = ArrayVec::new();
+    let mut captures: ArrayVec<u16, 256> = ArrayVec::new();
+    for &mv in legal_moves.iter() {
         if promising_moves.contains(&mv) {
             continue;
         } else {
-            let king_sq: u64 = if game.board.side_to_move {
-                game.board.kings & game.board.black_pieces
+            let king_sq: u64 = if board.side_to_move {
+                board.kings & board.black_pieces
             } else {
-                game.board.kings & game.board.white_pieces
+                board.kings & board.white_pieces
             };
             let [from_sqi, to_sqi, _] = decode_move(mv);
             if square_attacked(
-                game.board.side_to_move,
+                board.side_to_move,
                 king_sq,
-                &game.board,
+                board,
                 Some(1 << from_sqi),
                 Some(1 << to_sqi),
             ) {
@@ -340,17 +357,17 @@ pub fn reorder_moves(game: &mut ChessGame, promising_moves: &mut Vec<u16>) -> ()
             }
         }
     }
-    promising_moves.append(&mut checks);
-    promising_moves.append(&mut captures);
+    promising_moves.extend(checks);
+    promising_moves.extend(captures);
 
     // put promising moves from last depth in the front!
     let mut front = 0;
     for i in 0..promising_moves.len() {
-        if let Some(j) = game.legal_moves[front..]
+        if let Some(j) = legal_moves[front..]
             .iter()
             .position(|m| m == &promising_moves[i])
         {
-            game.legal_moves.swap(front, j + front);
+            legal_moves.swap(front, j + front);
             front += 1;
         }
     }
