@@ -34,7 +34,7 @@ pub fn iteratively_deepen(
             return best.best_move;
         } else {
             let legal_moves = game.legal_moves.clone();
-            let (score, best_move, dnodes) = negamax(
+            let (_, _, dnodes, _) = negamax(
                 game,
                 d,
                 -i16::MAX,
@@ -47,20 +47,20 @@ pub fn iteratively_deepen(
                 &mut killers,
                 0,
                 age,
+                &mut best,
             );
             nodes += dnodes;
-            // only trust this depth's result once it's actually finished - an interrupted depth's
-            // return value is a partial/incomplete search, not a real answer, so best keeps
-            // whatever the last fully-completed depth confirmed.
+            // negamax publishes to best incrementally as root moves complete, so this is always
+            // the authoritative answer regardless of whether the depth finished or was
+            // interrupted mid-loop. best_depth (not the loop variable d) reflects which depth
+            // this result actually came from.
+            let best_uci = decode_to_uci(best.best_move).unwrap();
             if !state.stop.load(Ordering::Relaxed) {
-                best.best_move = best_move;
-                best.best_score = score;
-                best.best_depth = d;
-                let best_uci = decode_to_uci(best.best_move).unwrap();
                 let elapsed = start_time.elapsed().as_millis().max(1);
                 let nps = ((nodes * 1000) as u128) / elapsed;
+                let (score, reported_depth) = (best.best_score, best.best_depth);
                 println!(
-                    "info depth {d} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
+                    "info depth {reported_depth} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
                 );
             }
             game.legal_moves = legal_moves; // restore legal_moves
@@ -450,6 +450,7 @@ mod tests {
                 &mut search::KillerTable::new(),
                 0,
                 0,
+                &mut RootBest::new(0),
             )
             .1,
         )
@@ -476,6 +477,7 @@ mod tests {
                 &mut search::KillerTable::new(),
                 0,
                 0,
+                &mut RootBest::new(0),
             )
             .1,
         )
@@ -502,6 +504,7 @@ mod tests {
                 &mut search::KillerTable::new(),
                 0,
                 0,
+                &mut RootBest::new(0),
             )
             .1,
         )
@@ -528,6 +531,7 @@ mod tests {
                 &mut search::KillerTable::new(),
                 0,
                 0,
+                &mut RootBest::new(0),
             )
             .1,
         )

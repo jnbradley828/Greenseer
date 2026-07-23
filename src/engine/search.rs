@@ -28,14 +28,16 @@ impl SearchState {
     }
 }
 
-// tracks the best confirmed answer across iterative deepening: only ever updated by
-// iteratively_deepen itself, once a depth completes without being interrupted - trusting that
-// depth's negamax return value directly, unconditionally. lives only on the search thread's own
-// stack, since nothing outside that thread ever needs to see it.
+// published incrementally by the root of negamax as root moves complete - always readable as
+// "the best confirmed answer so far", valid even if the search is interrupted mid-depth. lives
+// only on the search thread's own stack (passed down by &mut through the recursion), since
+// nothing outside that thread ever needs to see it.
 pub struct RootBest {
     pub best_move: u16,
     pub best_score: i16,
-    // the depth this result actually came from - equal to the last fully-completed depth.
+    // the depth that best_move/best_score actually came from - not necessarily the depth
+    // iteratively_deepen's loop is nominally on, since a depth that hasn't yet re-evaluated the
+    // incumbent move (see negamax's root loop) can leave this reflecting an earlier depth.
     pub best_depth: u8,
 }
 impl RootBest {
@@ -107,7 +109,10 @@ impl KillerTable {
 // recursive call that actually makes a move negates the returned score and swaps alpha/beta
 // into (-beta, -alpha); a call that doesn't move (check-extension/quiescence dispatch) does
 // neither, since the side to move hasn't changed.
-// returns (position eval, nodes visited) **pruned nodes are not counted**
+// returns (position eval, best move, nodes visited, completed) **pruned nodes are not counted**.
+// completed is false only when a stop signal cut this subtree short mid-search, in which case
+// the eval/move are a meaningless sentinel (always score 0) - callers must not treat them as a
+// real result, only propagate the incompletion upward.
 // quiescence search means search until no more captures are available and position is not check, even if depth expires.
 pub fn negamax(
     game: &mut ChessGame,
@@ -122,16 +127,17 @@ pub fn negamax(
     killers: &mut KillerTable,
     ply: u8,
     age: u8,
-) -> (i16, u16, u64) {
+    best: &mut RootBest,
+) -> (i16, u16, u64, bool) {
     let mut nodes: u64 = 1;
     if game.result != GameResult::InProgress {
         // if game is over in this position
         if !matches!(game.result, GameResult::Draw(_)) {
             // checkmate is always bad for whoever is to move (they have no moves and are in
             // check) - discounted by ply to prefer faster mates.
-            return (ply as i16 - 10000, 0, nodes);
+            return (ply as i16 - 10000, 0, nodes, true);
         } else {
-            return (0, 0, nodes);
+            return (0, 0, nodes, true);
         }
     }
 
@@ -152,16 +158,32 @@ pub fn negamax(
         // if flag is upper bound & tt score <= alpha: return tt score (it will trigger a cutoff at parent node)
         if tt_entry.2 >= depth {
             let tt_score = from_tt_score(tt_entry.1, ply);
+            // root only: this position's TT entry already covers >= depth, so it's a valid
+            // confirmed answer for this iteration - publish it before returning early, otherwise
+            // a root TT hit (routine once the TT holds entries from prior moves' searches)
+            // bypasses the moves loop entirely and best never hears about it.
+            let publish = |best: &mut RootBest| {
+                if ply == 0 {
+                    best.best_move = tt_entry.4;
+                    best.best_score = tt_score;
+                    best.best_depth = depth;
+                }
+            };
             match tt_entry.3 {
-                0 => return (tt_score, tt_entry.4, nodes),
+                0 => {
+                    publish(best);
+                    return (tt_score, tt_entry.4, nodes, true);
+                }
                 1 => {
                     if tt_score >= beta {
-                        return (tt_score, tt_entry.4, nodes);
+                        publish(best);
+                        return (tt_score, tt_entry.4, nodes, true);
                     }
                 }
                 2 => {
                     if tt_score <= alpha {
-                        return (tt_score, tt_entry.4, nodes);
+                        publish(best);
+                        return (tt_score, tt_entry.4, nodes, true);
                     }
                 }
                 _ => {}
@@ -179,20 +201,20 @@ pub fn negamax(
         // board/side, so no negation or alpha/beta swap.
         if rules::is_check(&game.board, game.board.side_to_move) {
             return negamax(
-                game, 1, alpha, beta, state, false, true, qdepth, tt, killers, ply, age,
+                game, 1, alpha, beta, state, false, true, qdepth, tt, killers, ply, age, best,
             );
         } else {
             // quiescence search: continue search until all captures are complete.
             let stand_pat_eval = relative_evaluate(game);
             if stand_pat_eval >= beta {
-                return (stand_pat_eval, 0, nodes);
+                return (stand_pat_eval, 0, nodes, true);
             }
             if qdepth == 0 {
-                return (stand_pat_eval, 0, nodes);
+                return (stand_pat_eval, 0, nodes, true);
             } else {
                 // no move made here either (same position, just now searching captures only) -
                 // no negation or swap.
-                let (q_eval, mv, q_nodes) = negamax(
+                let (q_eval, mv, q_nodes, q_completed) = negamax(
                     game,
                     1,
                     alpha,
@@ -205,26 +227,33 @@ pub fn negamax(
                     killers,
                     ply,
                     age,
+                    best,
                 );
                 nodes += q_nodes;
                 // stand_pat is a floor: a quiet position is never worse than not capturing.
                 if q_eval > stand_pat_eval {
-                    return (q_eval, mv, nodes);
+                    return (q_eval, mv, nodes, q_completed);
                 } else {
-                    return (stand_pat_eval, 0, nodes);
+                    return (stand_pat_eval, 0, nodes, q_completed);
                 }
             }
         }
     } else {
         // generate once per node, right where it's actually needed - reorder in place (no
-        // clone of the move list), folding in the tt move and this ply's killers if any exist,
-        // on top of the usual capture/check-first heuristic. skipped entirely during
-        // quiescence/check-extension, which are already restricted to a small, targeted move
-        // set - not worth the classification cost reorder_moves always pays regardless of
-        // what's passed in.
+        // clone of the move list), folding in the tt move (or, at the root, the incumbent move
+        // going into this depth - see below) and this ply's killers if any exist, on top of the
+        // usual capture/check-first heuristic. skipped entirely during quiescence/check-extension,
+        // which are already restricted to a small, targeted move set - not worth the
+        // classification cost reorder_moves always pays regardless of what's passed in.
         let mut legal_moves: ArrayVec<u16, 256> = get_legal_moves(&mut game.board);
         if !quiescence && !check_extension {
-            reorder_moves(&game.board, &mut legal_moves, tt_move, killers.get(ply));
+            // at the root, force best.best_move to the front regardless of what (if anything)
+            // the tt lookup returned - the incremental publish logic below depends on this move
+            // being re-evaluated as early as possible each depth, and the tt isn't a reliable way
+            // to guarantee that (skip_tt on repetitions, or the root's slot simply getting
+            // overwritten by an unrelated node in a huge, shared table).
+            let move_to_front = if ply == 0 { Some(best.best_move) } else { tt_move };
+            reorder_moves(&game.board, &mut legal_moves, move_to_front, killers.get(ply));
         }
 
         let mut alpha = alpha;
@@ -234,7 +263,7 @@ pub fn negamax(
         let mut best_move = legal_moves[0];
         for movei in legal_moves {
             if state.stop.load(Ordering::Relaxed) {
-                return (0, best_move, nodes);
+                return (0, best_move, nodes, false);
             }
             if quiescence && !is_capture(movei) {
                 // if quiescence only search: skip non captures.
@@ -243,7 +272,7 @@ pub fn negamax(
             _ = game.make_move(movei, false, true);
             // a move was actually made here - negate the child's score (it's from the
             // opponent's perspective) and swap alpha/beta accordingly.
-            let (child_eval, _, child_nodes) = negamax(
+            let (child_eval, _, child_nodes, child_completed) = negamax(
                 game,
                 depth - 1,
                 -beta,
@@ -256,13 +285,39 @@ pub fn negamax(
                 killers,
                 ply + 1,
                 age,
+                best,
             );
             let eval = -child_eval;
             nodes += child_nodes;
             _ = game.unmake_move(false);
+            if !child_completed {
+                // movei's subtree was abandoned mid-search - eval is a meaningless sentinel, not
+                // a real result. propagate the incompletion upward without letting it pollute
+                // best_eval/best_move or get published below as if it were genuine.
+                return (0, best_move, nodes, false);
+            }
             if eval > best_eval {
                 best_eval = eval;
                 best_move = movei;
+            }
+            // root only: publish incrementally so best.best_move/best_score always reflect the
+            // best confirmed answer, even if interrupted mid-depth. checked every move, not
+            // nested inside "if eval > best_eval" above - movei can be worth publishing even on
+            // an iteration where it didn't just become the local incumbent. two safe cases:
+            // (1) movei is the previously-published move - it's had its fair shot at this depth,
+            // so whatever's locally best now wins by default, even if lower than before.
+            // (2) movei isn't that move, but the local best already outright beats the stored
+            // score - no fairness concern needed there either.
+            if ply == 0 {
+                if movei == best.best_move {
+                    best.best_move = best_move;
+                    best.best_score = best_eval;
+                    best.best_depth = depth;
+                } else if best_eval > best.best_score {
+                    best.best_move = best_move;
+                    best.best_score = best_eval;
+                    best.best_depth = depth;
+                }
             }
             if best_eval > alpha {
                 alpha = best_eval;
@@ -298,7 +353,7 @@ pub fn negamax(
             );
         }
 
-        return (best_eval, best_move, nodes);
+        return (best_eval, best_move, nodes, true);
     }
 }
 
