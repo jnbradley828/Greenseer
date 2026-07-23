@@ -150,10 +150,10 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
             let mut game_clone = game.clone();
             let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let _ =
+                let best_move =
                     iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
                 cancel.store(true, Ordering::Relaxed);
-                let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+                let uci_move = decode_to_uci(best_move).unwrap();
                 println!("bestmove {}", uci_move);
             });
         }
@@ -161,13 +161,13 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
             let mut game_clone = game.clone();
             let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let _ = iteratively_deepen(
+                let best_move = iteratively_deepen(
                     &mut game_clone,
                     depth.unwrap(),
                     Arc::clone(&state),
                     &mut tt_clone,
                 );
-                let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+                let uci_move = decode_to_uci(best_move).unwrap();
                 println!("bestmove {}", uci_move);
             });
         }
@@ -208,10 +208,10 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
             let mut game_clone = game.clone();
             let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let _ =
+                let best_move =
                     iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
                 cancel.store(true, Ordering::Relaxed);
-                let uci_move = decode_to_uci(state.best_move.load(Ordering::Relaxed)).unwrap();
+                let uci_move = decode_to_uci(best_move).unwrap();
                 println!("bestmove {}", uci_move);
             });
         }

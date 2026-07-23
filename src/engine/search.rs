@@ -15,17 +15,35 @@ use crate::engine::utils::{
 };
 use crate::engine::{self, eval::relative_evaluate};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub struct SearchState {
     pub stop: AtomicBool,
-    pub best_move: AtomicU16,
 }
 impl SearchState {
     pub fn new() -> Self {
         Self {
             stop: AtomicBool::new(false),
-            best_move: AtomicU16::new(0),
+        }
+    }
+}
+
+// tracks the best confirmed answer across iterative deepening: only ever updated by
+// iteratively_deepen itself, once a depth completes without being interrupted - trusting that
+// depth's negamax return value directly, unconditionally. lives only on the search thread's own
+// stack, since nothing outside that thread ever needs to see it.
+pub struct RootBest {
+    pub best_move: u16,
+    pub best_score: i16,
+    // the depth this result actually came from - equal to the last fully-completed depth.
+    pub best_depth: u8,
+}
+impl RootBest {
+    pub fn new(fallback_move: u16) -> Self {
+        Self {
+            best_move: fallback_move,
+            best_score: -i16::MAX,
+            best_depth: 0,
         }
     }
 }

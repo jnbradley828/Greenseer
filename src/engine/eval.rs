@@ -1,5 +1,5 @@
 use crate::engine::eval_heuristics::*;
-use crate::engine::search::{self, SearchState, TT, negamax, reorder_moves};
+use crate::engine::search::{self, RootBest, SearchState, TT, negamax, reorder_moves};
 use crate::engine::utils::{pawn_backward, pawn_isolated, pawn_passed};
 use oxi_chess_lib;
 use oxi_chess_lib::board::ChessBoard;
@@ -25,15 +25,13 @@ pub fn iteratively_deepen(
     let mut nodes = 0;
     let age = (game.moves.len() / 2) as u8; // age for transposition table entries
     // stores first move in the list just in case "stop" is called immediately.
-    state
-        .best_move
-        .store(game.legal_moves[0], Ordering::Relaxed);
+    let mut best = RootBest::new(game.legal_moves[0]);
     // persists (and accumulates) across all depth iterations of this search, not reset per depth.
     let mut killers = search::KillerTable::new();
 
     for d in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
-            return state.best_move.load(Ordering::Relaxed);
+            return best.best_move;
         } else {
             let legal_moves = game.legal_moves.clone();
             let (score, best_move, dnodes) = negamax(
@@ -51,9 +49,14 @@ pub fn iteratively_deepen(
                 age,
             );
             nodes += dnodes;
-            let best_uci = decode_to_uci(best_move).unwrap();
+            // only trust this depth's result once it's actually finished - an interrupted depth's
+            // return value is a partial/incomplete search, not a real answer, so best keeps
+            // whatever the last fully-completed depth confirmed.
             if !state.stop.load(Ordering::Relaxed) {
-                state.best_move.store(best_move, Ordering::Relaxed);
+                best.best_move = best_move;
+                best.best_score = score;
+                best.best_depth = d;
+                let best_uci = decode_to_uci(best.best_move).unwrap();
                 let elapsed = start_time.elapsed().as_millis().max(1);
                 let nps = ((nodes * 1000) as u128) / elapsed;
                 println!(
@@ -63,7 +66,7 @@ pub fn iteratively_deepen(
             game.legal_moves = legal_moves; // restore legal_moves
         }
     }
-    return state.best_move.load(Ordering::Relaxed);
+    return best.best_move;
 }
 
 // returns objective material count
