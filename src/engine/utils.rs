@@ -196,6 +196,31 @@ pub fn pawn_backward(sq_i: u8, color: bool, board: &ChessBoard) -> bool {
     attacker_mask & opponent_pawns != 0
 }
 
+// does making this move give check, without actually making it (via square_attacked's
+// from/to-square simulation) - distinct from oxi_chess_lib::rules::is_check, which answers "is
+// the current position, as-is, in check" rather than "would this pending move result in check."
+pub fn move_gives_check(board: &ChessBoard, mv: u16) -> bool {
+    let king_sq: u64 = if board.side_to_move {
+        board.kings & board.black_pieces
+    } else {
+        board.kings & board.white_pieces
+    };
+    let [from_sqi, to_sqi, _] = oxi_chess_lib::utils::decode_move(mv);
+    oxi_chess_lib::moves::square_attacked(
+        board.side_to_move,
+        king_sq,
+        board,
+        Some(1 << from_sqi),
+        Some(1 << to_sqi),
+    )
+}
+
+// flags 1/3/8/9/10/11 are the capture move-type flags (normal capture, en passant, and the
+// four promotion-with-capture variants) - see oxi_chess_lib::utils::encode_move/decode_move.
+pub fn is_capture(mv: u16) -> bool {
+    [1, 3, 8, 9, 10, 11].contains(&oxi_chess_lib::utils::decode_move(mv)[2])
+}
+
 // higher is more relevant. depth alone when age matches (age_diff == 0); penalized per move of staleness otherwise.
 pub fn relevance_score(depth: u8, entry_age: u8, current_age: u8) -> i16 {
     depth as i16 - (current_age.wrapping_sub(entry_age) as i16) * TT_AGE_FACTOR

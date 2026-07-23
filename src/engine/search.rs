@@ -6,12 +6,13 @@ use oxi_chess_lib::{
         ChessGame,
         GameResult::{self},
     },
-    moves::{get_legal_moves, square_attacked},
-    rules, utils,
-    utils::decode_move,
+    moves::get_legal_moves,
+    rules,
 };
 
-use crate::engine::utils::{from_tt_score, retrieve_tt_or_none, to_tt_score, update_tt};
+use crate::engine::utils::{
+    from_tt_score, is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
+};
 use crate::engine::{self, eval::unsigned_evaluate};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
@@ -202,7 +203,7 @@ pub fn minimax(
                 if state.stop.load(Ordering::Relaxed) {
                     return (0, best_move, nodes);
                 }
-                if quiescence && ![1, 3, 8, 9, 10, 11].contains(&utils::decode_move(movei)[2]) {
+                if quiescence && !is_capture(movei) {
                     // if quiescence only search: skip non captures.
                     continue;
                 }
@@ -267,7 +268,7 @@ pub fn minimax(
                 if state.stop.load(Ordering::Relaxed) {
                     return (0, best_move, nodes);
                 }
-                if quiescence && ![1, 3, 8, 9, 10, 11].contains(&utils::decode_move(movei)[2]) {
+                if quiescence && !is_capture(movei) {
                     // if quiescence only search: skip non captures.
                     continue;
                 }
@@ -336,23 +337,9 @@ pub fn reorder_moves(
         if promising_moves.contains(&mv) {
             continue;
         } else {
-            let king_sq: u64 = if board.side_to_move {
-                board.kings & board.black_pieces
-            } else {
-                board.kings & board.white_pieces
-            };
-            let [from_sqi, to_sqi, _] = decode_move(mv);
-            if square_attacked(
-                board.side_to_move,
-                king_sq,
-                board,
-                Some(1 << from_sqi),
-                Some(1 << to_sqi),
-            ) {
+            if move_gives_check(board, mv) {
                 checks.push(mv)
-            } else if [1, 3, 8, 9, 10, 11]
-                .contains(&(oxi_chess_lib::utils::decode_move(mv)[2] as i32))
-            {
+            } else if is_capture(mv) {
                 captures.push(mv);
             }
         }
