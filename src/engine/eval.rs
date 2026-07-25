@@ -1,12 +1,14 @@
 use crate::engine::eval_heuristics::*;
 use crate::engine::search::{self, RootBest, SearchState, TT, negamax, reorder_moves};
-use crate::engine::utils::{pawn_backward, pawn_isolated, pawn_passed};
+use crate::engine::utils::{
+    KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, king_file_weakness_mult, pawn_backward,
+    pawn_isolated, pawn_passed, pawn_shield_score,
+};
 use oxi_chess_lib;
 use oxi_chess_lib::board::ChessBoard;
 use oxi_chess_lib::magic_tables::ROOK_ATTACKS;
 use oxi_chess_lib::moves::{
     get_bishop_attacks, get_legal_moves, get_queen_attacks, get_rook_attacks, knight_attacks,
-    pawn_attacks,
 };
 use oxi_chess_lib::utils::decode_to_uci;
 use std::collections::VecDeque;
@@ -154,14 +156,51 @@ pub fn positional_mods(
     let mut mg_modifier: i16 = 0;
     let mut eg_modifier: i16 = 0;
     let mut mobility_score: i16 = 0;
+    // raw (unscaled) king attack units: white's attack on black's king zone, and
+    // black's attack on white's king zone. summed across all pieces before applying the
+    // nonlinear scaling once per side, rather than per-piece.
+    let mut w_king_attack_units: i16 = 0;
+    let mut b_king_attack_units: i16 = 0;
+
+    // each side's king square/zone is fixed for the whole position - compute once here rather
+    // than re-deriving it inside bb_to_posmod on every one of the 12 calls below.
+    let w_king_sq = (game.board.kings & game.board.white_pieces).trailing_zeros() as usize;
+    let b_king_sq = (game.board.kings & game.board.black_pieces).trailing_zeros() as usize;
+    let w_king_zone = KING_ZONE_MASKS[w_king_sq];
+    let b_king_zone = KING_ZONE_MASKS[b_king_sq];
 
     for i in 0..6 {
-        let (w_mg, w_eg, w_ms) = bb_to_posmod(w_bbs[i], i as u8, true, &game.board);
-        let (b_mg, b_eg, b_ms) = bb_to_posmod(b_bbs[i], i as u8, false, &game.board);
+        let (w_mg, w_eg, w_ms, w_au) =
+            bb_to_posmod(w_bbs[i], i as u8, true, &game.board, b_king_sq, b_king_zone);
+        let (b_mg, b_eg, b_ms, b_au) =
+            bb_to_posmod(b_bbs[i], i as u8, false, &game.board, w_king_sq, w_king_zone);
         mg_modifier += w_mg + b_mg;
         eg_modifier += w_eg + b_eg;
         mobility_score += w_ms + b_ms;
+        w_king_attack_units += w_au;
+        b_king_attack_units += b_au;
     }
+
+    // king safety: polynomial (linear + quadratic) scaling of raw attack units against each
+    // king, so danger compounds as attackers pile up rather than growing linearly, while still
+    // giving small attacker counts a nonzero contribution. clamped first so a degenerate
+    // position with many overlapping attackers can't produce an unbounded eval swing.
+    // middlegame only - fades out along with the rest of mg_modifier via the phase weighting
+    // below.
+    let w_units = w_king_attack_units.min(MAX_KING_ATTACK_UNITS) as f32;
+    let b_units = b_king_attack_units.min(MAX_KING_ATTACK_UNITS) as f32;
+    let w_base_danger = KING_ATTACK_LINEAR * w_units + KING_ATTACK_QUADRATIC * w_units * w_units;
+    let b_base_danger = KING_ATTACK_LINEAR * b_units + KING_ATTACK_QUADRATIC * b_units * b_units;
+    // open/semi-open files near the king amplify existing attack pressure rather than adding
+    // danger on their own - a weak file with zero real attackers still contributes zero here,
+    // avoiding false positives like a normal pre-castling central pawn trade.
+    let w_king_danger = (w_base_danger
+        * king_file_weakness_mult(b_king_sq as u8, false, &game.board))
+    .round() as i16;
+    let b_king_danger = (b_base_danger
+        * king_file_weakness_mult(w_king_sq as u8, true, &game.board))
+    .round() as i16;
+    mg_modifier += w_king_danger - b_king_danger;
 
     // give a bonus for rooks on open files
     let mut w_rooks = game.board.rooks & game.board.white_pieces;
@@ -217,12 +256,11 @@ pub fn positional_mods(
     mg_modifier -= (wdb_pawns_count - bdb_pawns_count) * MG_DOUBLED_PAWN_PENALTY;
     eg_modifier -= (wdb_pawns_count - bdb_pawns_count) * EG_DOUBLED_PAWN_PENALTY;
 
-    // weight middlegame vs endgame relevancy
-    let eg_weighted = ((MAX_MAJOR_PIECE_MATERIAL - major_piece_count) as f32
-        / MAX_MAJOR_PIECE_MATERIAL as f32)
-        * eg_modifier as f32;
-    let mg_weighted =
-        (major_piece_count as f32 / MAX_MAJOR_PIECE_MATERIAL as f32) * mg_modifier as f32;
+    // weight middlegame vs endgame relevancy - complementary fractions of the same phase, so
+    // eg's fraction is just 1 - mg's rather than a separately computed ratio.
+    let mg_frac = major_piece_count as f32 / MG_PHASE_SPAN as f32;
+    let mg_weighted = mg_frac * mg_modifier as f32;
+    let eg_weighted = (1.0 - mg_frac) * eg_modifier as f32;
 
     // if down material, try to keep total material count high (don't trade).
     // if up material, try to total material count low..
@@ -260,8 +298,17 @@ pub fn positional_mods(
 }
 
 // piece type 0-5 = pawn, knight, bishop, rook, queen, king
-// returns (mg, eg, mobility_score) objective positional score modifications in a single pass
-pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) -> (i16, i16, i16) {
+// returns (mg, eg, mobility_score, king_attack_units) objective positional score modifications
+// in a single pass. king_attack_units is raw (not yet power-scaled) and always non-negative -
+// callers sum it across pieces before applying the nonlinear king safety scaling once per side.
+pub fn bb_to_posmod(
+    bb: u64,
+    piece_type: u8,
+    to_move: bool,
+    board: &ChessBoard,
+    enemy_king_sq: usize,
+    enemy_king_zone: u64,
+) -> (i16, i16, i16, i16) {
     let mg_mask: &[i8; 64];
     let eg_mask: &[i8; 64];
     let mobility_factor: i16;
@@ -302,22 +349,32 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
     let mut mg_modifier: i16 = 0;
     let mut eg_modifier: i16 = 0;
     let mut mobility_score: i16 = 0;
+    let mut king_attack_units: i16 = 0;
     let mut mbb: u64 = bb;
     if to_move {
+        if piece_type == 0 {
+            // O(1): AND the whole pawn bitboard against a precomputed mask instead of
+            // generating attacks per pawn - see KING_ZONE_PAWN_ATTACKERS.
+            king_attack_units += (bb & KING_ZONE_PAWN_ATTACKERS[0][enemy_king_sq]).count_ones()
+                as i16
+                * KING_ATTACK_WEIGHT[0];
+        }
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
             mg_modifier += mg_mask[i] as i16;
             eg_modifier += eg_mask[i] as i16;
             if mobility_factor != 0 {
-                let num_attacks: i16 = match piece_type {
-                    1 => knight_attacks(true, 1 << i, board).count_ones() as i16,
-                    2 => get_bishop_attacks(board, true, i as u8).count_ones() as i16,
-                    3 => get_rook_attacks(board, true, i as u8).count_ones() as i16,
-                    4 => get_queen_attacks(board, true, i as u8).count_ones() as i16,
+                let attacks: u64 = match piece_type {
+                    1 => knight_attacks(true, 1 << i, board),
+                    2 => get_bishop_attacks(board, true, i as u8),
+                    3 => get_rook_attacks(board, true, i as u8),
+                    4 => get_queen_attacks(board, true, i as u8),
                     _ => 0,
                 };
-                mobility_score += num_attacks * mobility_factor;
+                mobility_score += attacks.count_ones() as i16 * mobility_factor;
+                king_attack_units += (attacks & enemy_king_zone).count_ones() as i16
+                    * KING_ATTACK_WEIGHT[piece_type as usize];
             }
             if piece_type == 0 {
                 let rank = oxi_chess_lib::utils::rank_value(1u64 << i);
@@ -344,22 +401,34 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
                     mg_modifier += SEMIOPEN_FILE_ROOK;
                 }
             }
+            if piece_type == 5 {
+                mg_modifier += pawn_shield_score(i as u8, true, board);
+            }
         }
     } else {
+        if piece_type == 0 {
+            // O(1): AND the whole pawn bitboard against a precomputed mask instead of
+            // generating attacks per pawn - see KING_ZONE_PAWN_ATTACKERS.
+            king_attack_units += (bb & KING_ZONE_PAWN_ATTACKERS[1][enemy_king_sq]).count_ones()
+                as i16
+                * KING_ATTACK_WEIGHT[0];
+        }
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
             mg_modifier -= mg_mask[63 - i] as i16;
             eg_modifier -= eg_mask[63 - i] as i16;
             if mobility_factor != 0 {
-                let num_attacks: i16 = match piece_type {
-                    1 => knight_attacks(false, 1 << i, board).count_ones() as i16,
-                    2 => get_bishop_attacks(board, false, i as u8).count_ones() as i16,
-                    3 => get_rook_attacks(board, false, i as u8).count_ones() as i16,
-                    4 => get_queen_attacks(board, false, i as u8).count_ones() as i16,
+                let attacks: u64 = match piece_type {
+                    1 => knight_attacks(false, 1 << i, board),
+                    2 => get_bishop_attacks(board, false, i as u8),
+                    3 => get_rook_attacks(board, false, i as u8),
+                    4 => get_queen_attacks(board, false, i as u8),
                     _ => 0,
                 };
-                mobility_score -= num_attacks * mobility_factor;
+                mobility_score -= attacks.count_ones() as i16 * mobility_factor;
+                king_attack_units += (attacks & enemy_king_zone).count_ones() as i16
+                    * KING_ATTACK_WEIGHT[piece_type as usize];
             }
             if piece_type == 0 {
                 let rank = oxi_chess_lib::utils::rank_value(1u64 << i);
@@ -386,10 +455,13 @@ pub fn bb_to_posmod(bb: u64, piece_type: u8, to_move: bool, board: &ChessBoard) 
                     mg_modifier -= SEMIOPEN_FILE_ROOK;
                 }
             }
+            if piece_type == 5 {
+                mg_modifier -= pawn_shield_score(i as u8, false, board);
+            }
         }
     }
 
-    return (mg_modifier, eg_modifier, mobility_score);
+    return (mg_modifier, eg_modifier, mobility_score, king_attack_units);
 }
 
 // returns score from the perspective of the side currently to move (positive = good for them).

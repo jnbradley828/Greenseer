@@ -4,7 +4,9 @@ use oxi_chess_lib::board::ChessBoard;
 use oxi_chess_lib::moves::{BLACK_PAWN_ATTACKS, WHITE_PAWN_ATTACKS};
 
 use crate::engine::eval::{FILE_MASK, RANK_MASK};
-use crate::engine::eval_heuristics::TT_AGE_FACTOR;
+use crate::engine::eval_heuristics::{
+    KING_OPEN_FILE_MULT, KING_SEMIOPEN_FILE_MULT, MG_PAWN_SHIELD_BONUS, TT_AGE_FACTOR,
+};
 use crate::engine::search::TT;
 
 // tt slot is (full 64-bit zobrist key, packed data word).
@@ -219,6 +221,149 @@ pub fn move_gives_check(board: &ChessBoard, mv: u16) -> bool {
 // four promotion-with-capture variants) - see oxi_chess_lib::utils::encode_move/decode_move.
 pub fn is_capture(mv: u16) -> bool {
     [1, 3, 8, 9, 10, 11].contains(&oxi_chess_lib::utils::decode_move(mv)[2])
+}
+
+// mask of a king's square plus up to 8 surrounding squares - used to detect enemy piece
+// attacks landing in/near the king's zone for king safety.
+pub const KING_ZONE_MASKS: [u64; 64] = generate_king_zone_masks();
+
+const fn king_zone_mask(sq_i: u8) -> u64 {
+    let sq: u64 = 1 << sq_i;
+    let file = oxi_chess_lib::utils::file_value(sq) as i8; // 1-8
+    let rank = oxi_chess_lib::utils::rank_value(sq) as i8; // 1-8
+
+    let mut mask: u64 = 0;
+    let mut df = -1;
+    while df <= 1 {
+        let mut dr = -1;
+        while dr <= 1 {
+            let f = file + df;
+            let r = rank + dr;
+            if f >= 1 && f <= 8 && r >= 1 && r <= 8 {
+                let idx = (r - 1) * 8 + (f - 1);
+                mask |= 1u64 << idx;
+            }
+            dr += 1;
+        }
+        df += 1;
+    }
+    mask
+}
+
+const fn generate_king_zone_masks() -> [u64; 64] {
+    let mut masks = [0u64; 64];
+    let mut sq = 0;
+    while sq < 64 {
+        masks[sq as usize] = king_zone_mask(sq);
+        sq += 1;
+    }
+    masks
+}
+
+// mask, per king color/square, of the squares an enemy pawn would need to stand on to attack
+// any square in that king's zone - the union of the pawn-attacker mirror trick (see
+// pawn_backward) over every square in the zone. lets the king-safety check for pawns be a
+// single AND + popcount against this table instead of generating attacks per pawn per node.
+pub const KING_ZONE_PAWN_ATTACKERS: [[u64; 64]; 2] = generate_king_zone_pawn_attacker_masks();
+
+const fn king_zone_pawn_attacker_mask(color: bool, king_sq_i: u8) -> u64 {
+    let mut zone = KING_ZONE_MASKS[king_sq_i as usize];
+    let mut mask: u64 = 0;
+    while zone != 0 {
+        let sq = zone.trailing_zeros() as usize;
+        zone &= zone - 1;
+        mask |= if color {
+            WHITE_PAWN_ATTACKS[sq]
+        } else {
+            BLACK_PAWN_ATTACKS[sq]
+        };
+    }
+    mask
+}
+
+const fn generate_king_zone_pawn_attacker_masks() -> [[u64; 64]; 2] {
+    let mut masks = [[0u64; 64]; 2];
+    let mut sq = 0;
+    while sq < 64 {
+        masks[0][sq as usize] = king_zone_pawn_attacker_mask(false, sq);
+        masks[1][sq as usize] = king_zone_pawn_attacker_mask(true, sq);
+        sq += 1;
+    }
+    masks
+}
+
+// sums MG_PAWN_SHIELD_BONUS over the king's file and both adjacent files, tiered by how far
+// advanced the closest friendly pawn on each file is (or 0 if there is none within two ranks).
+pub fn pawn_shield_score(king_sq_i: u8, color: bool, board: &ChessBoard) -> i16 {
+    let king_sq: u64 = 1 << king_sq_i;
+    let king_file = oxi_chess_lib::utils::file_value(king_sq) as i8; // 1-8
+    let king_rank = oxi_chess_lib::utils::rank_value(king_sq) as i8; // 1-8
+
+    let friendly_pawns: u64 = if color {
+        board.white_pieces & board.pawns
+    } else {
+        board.black_pieces & board.pawns
+    };
+
+    let mut score: i16 = 0;
+    let mut file = king_file - 1;
+    while file <= king_file + 1 {
+        if file >= 1 && file <= 8 {
+            let file_pawns = FILE_MASK[(file - 1) as usize] & friendly_pawns;
+            score += MG_PAWN_SHIELD_BONUS[shield_file_tier(file_pawns, king_rank, color)];
+        }
+        file += 1;
+    }
+    score
+}
+
+// multiplier (not a standalone score) on the king-attack danger formula, from the king's own
+// file and both adjacent files being open (no pawns at all) or semi-open (no friendly pawns,
+// but enemy pawns present). a weak file with no real attacking pressure behind it contributes
+// nothing on its own - see KING_OPEN_FILE_MULT.
+pub fn king_file_weakness_mult(king_sq_i: u8, color: bool, board: &ChessBoard) -> f32 {
+    let king_sq: u64 = 1 << king_sq_i;
+    let king_file = oxi_chess_lib::utils::file_value(king_sq) as i8; // 1-8
+
+    let friendly_pawns: u64 = if color {
+        board.white_pieces & board.pawns
+    } else {
+        board.black_pieces & board.pawns
+    };
+
+    let mut mult: f32 = 1.0;
+    let mut file = king_file - 1;
+    while file <= king_file + 1 {
+        if file >= 1 && file <= 8 {
+            let file_mask = FILE_MASK[(file - 1) as usize];
+            if file_mask & board.pawns == 0 {
+                mult += KING_OPEN_FILE_MULT;
+            } else if file_mask & friendly_pawns == 0 {
+                mult += KING_SEMIOPEN_FILE_MULT;
+            }
+        }
+        file += 1;
+    }
+    mult
+}
+
+// dist 1 = pawn one rank ahead of the king (tier 0, ideal). dist 2 = pawn two ranks ahead
+// (tier 1, pushed once). anything further, or no pawn on the file at all, is tier 2 (weak).
+fn shield_file_tier(file_pawns: u64, king_rank: i8, color: bool) -> usize {
+    for dist in 1..=2i8 {
+        let target_rank = if color {
+            king_rank + dist
+        } else {
+            king_rank - dist
+        };
+        if target_rank < 1 || target_rank > 8 {
+            continue;
+        }
+        if RANK_MASK[(target_rank - 1) as usize] & file_pawns != 0 {
+            return (dist - 1) as usize;
+        }
+    }
+    2
 }
 
 // higher is more relevant. depth alone when age matches (age_diff == 0); penalized per move of staleness otherwise.
