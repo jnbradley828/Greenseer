@@ -1,5 +1,6 @@
 use crate::engine::eval_heuristics::*;
-use crate::engine::search::{self, RootBest, SearchState, TT, negamax, reorder_moves};
+use crate::engine::search::{self, RootBest, SearchState, TT, negamax};
+use crate::engine::search_heuristics::MAX_QDEPTH;
 use crate::engine::utils::{
     KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, king_file_weakness_mult, pawn_backward,
     pawn_isolated, pawn_passed, pawn_shield_score,
@@ -44,7 +45,7 @@ pub fn iteratively_deepen(
                 Arc::clone(&state),
                 false,
                 false,
-                search::MAX_QDEPTH,
+                MAX_QDEPTH,
                 tt,
                 &mut killers,
                 0,
@@ -517,7 +518,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                search::MAX_QDEPTH,
+                MAX_QDEPTH,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,
@@ -544,7 +545,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                search::MAX_QDEPTH,
+                MAX_QDEPTH,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,
@@ -571,7 +572,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                search::MAX_QDEPTH,
+                MAX_QDEPTH,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,
@@ -598,7 +599,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                search::MAX_QDEPTH,
+                MAX_QDEPTH,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,

@@ -1,10 +1,13 @@
 use crate::engine::eval::iteratively_deepen;
 use crate::engine::search::{SearchState, TT};
+use crate::engine::search_heuristics::{
+    INC_FRACTION_DENOM, INC_FRACTION_NUM, MOVE_OVERHEAD, PANIC_THRESHOLD_MS,
+    SINGLE_LEGAL_MOVE_TIME_MS, TIME_DIVISOR,
+};
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::game::GameResult::InProgress;
 use oxi_chess_lib::moves::get_legal_moves;
 use oxi_chess_lib::utils::decode_to_uci;
-use std::cmp::min;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use std::{
@@ -133,7 +136,6 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
         .and_then(|i| parts.get(i + 1))
         .and_then(|d| d.parse::<u32>().ok());
 
-    const MOVE_OVERHEAD: u32 = 20;
     match (depth, movetime, wtime, btime, winc, binc) {
         (_, Some(mt), _, _, _, _) => {
             let cancel = Arc::new(AtomicBool::new(false));
@@ -180,18 +182,13 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
 
             let mut mt: u32;
 
-            // cap thinking at 50ms if there is only 1 move, 3 seconds if this is move 1. Cap time at time remaining / 10 if low on time (<=3 seconds)
-            let panic_threshold = 50;
-            if time <= panic_threshold {
+            if time <= PANIC_THRESHOLD_MS {
                 mt = 1;
             } else if game.legal_moves.len() == 1 {
-                mt = 50;
+                mt = SINGLE_LEGAL_MOVE_TIME_MS;
             } else {
-                mt = (time / 20) + (inc * 3 / 4);
+                mt = (time / TIME_DIVISOR) + (inc * INC_FRACTION_NUM / INC_FRACTION_DENOM);
                 mt = ((mt as f32) * (time as f32 / opptime as f32) + 0.5) as u32; // scales time based on time differential.
-                if game.moves.len() <= 3 {
-                    mt = min(mt, 1500);
-                }
             }
 
             let cancel = Arc::new(AtomicBool::new(false));

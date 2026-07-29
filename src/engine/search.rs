@@ -70,7 +70,6 @@ impl TT {
     }
 }
 
-pub const MAX_QDEPTH: u8 = 6;
 // 2 killer (quiet, cutoff-causing) moves per ply. sized to 255 (not 256) since ply is a u8 and
 // ply 0 (the root - it has no siblings, so a killer stored there could never be read by
 // anyone) is excluded from storage. the ply -> index mapping is encapsulated here rather than

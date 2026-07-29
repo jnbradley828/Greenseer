@@ -8,6 +8,7 @@ use crate::engine::eval_heuristics::{
     KING_OPEN_FILE_MULT, KING_SEMIOPEN_FILE_MULT, MG_PAWN_SHIELD_BONUS, TT_AGE_FACTOR,
 };
 use crate::engine::search::TT;
+use crate::engine::search_heuristics::MATE_THRESHOLD;
 
 // tt slot is (full 64-bit zobrist key, packed data word).
 // packed data schema (from msb to lsb):
@@ -19,7 +20,6 @@ use crate::engine::search::TT;
 pub const TT_EXACT_FLAG: u8 = 0;
 pub const TT_LOWERB_FLAG: u8 = 1;
 pub const TT_UPPERB_FLAG: u8 = 2;
-pub const MATE_THRESHOLD: i16 = 9000;
 pub const PASSED_PAWN_MASKS: [[u64; 64]; 2] = generate_passed_pawns_masks();
 
 // returns a mask for the squares to check for opposing pawns to see if your pawn is passed.
