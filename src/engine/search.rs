@@ -10,6 +10,9 @@ use oxi_chess_lib::{
     rules,
 };
 
+use crate::engine::search_heuristics::{
+    MATE_THRESHOLD, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH,
+};
 use crate::engine::utils::{
     from_tt_score, is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
 };
@@ -244,15 +247,44 @@ pub fn negamax(
         // usual capture/check-first heuristic. skipped entirely during quiescence/check-extension,
         // which are already restricted to a small, targeted move set - not worth the
         // classification cost reorder_moves always pays regardless of what's passed in.
-        let mut legal_moves: ArrayVec<u16, 256> = get_legal_moves(&mut game.board);
+        let mut legal_moves: ArrayVec<u16, 256>;
+
         if !quiescence && !check_extension {
+            // reverse futility pruning: if the position is so good that eval >= beta + margin,
+            // don't even bother searching deeper. improves speed, accuracy irons itself out
+            // over increased depth.
+            // only use for low depths, non-mate beta values, and non-check positions.
+            if depth <= RFP_MAX_DEPTH
+                && beta > -MATE_THRESHOLD
+                && !rules::is_check(&game.board, game.board.side_to_move)
+            {
+                let static_eval = relative_evaluate(game);
+                let margin = RFP_MARGIN_BASE + (depth as i16 * RFP_MARGIN_PER_DEPTH);
+                if static_eval - margin >= beta {
+                    return (static_eval, 0, nodes, true);
+                }
+            }
+
+            legal_moves = get_legal_moves(&mut game.board);
+
             // at the root, force best.best_move to the front regardless of what (if anything)
             // the tt lookup returned - the incremental publish logic below depends on this move
             // being re-evaluated as early as possible each depth, and the tt isn't a reliable way
             // to guarantee that (skip_tt on repetitions, or the root's slot simply getting
             // overwritten by an unrelated node in a huge, shared table).
-            let move_to_front = if ply == 0 { Some(best.best_move) } else { tt_move };
-            reorder_moves(&game.board, &mut legal_moves, move_to_front, killers.get(ply));
+            let move_to_front = if ply == 0 {
+                Some(best.best_move)
+            } else {
+                tt_move
+            };
+            reorder_moves(
+                &game.board,
+                &mut legal_moves,
+                move_to_front,
+                killers.get(ply),
+            );
+        } else {
+            legal_moves = get_legal_moves(&mut game.board);
         }
 
         let mut alpha = alpha;

@@ -23,3 +23,11 @@ pub const TIME_DIVISOR: u32 = 20;
 // fraction of the increment folded into the base move time budget.
 pub const INC_FRACTION_NUM: u32 = 3;
 pub const INC_FRACTION_DENOM: u32 = 4;
+
+// reverse futility pruning prunes nodes where the static eval is so good,
+// it is determined that searching deeper is unneccessary.
+// condition to prune: static_eval - margin >= beta
+// margin = C * depth + B
+pub const RFP_MARGIN_PER_DEPTH: i16 = 150;
+pub const RFP_MARGIN_BASE: i16 = 120;
+pub const RFP_MAX_DEPTH: u8 = 6;
