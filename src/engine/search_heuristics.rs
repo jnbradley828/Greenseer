@@ -36,3 +36,11 @@ pub const RFP_MAX_DEPTH: u8 = 6;
 // skipping your move leads to a score >= beta.
 pub const NMP_MIN_DEPTH: u8 = 3;
 pub const NMP_REDUCTION: u8 = 2;
+
+// futility pruning skips individual quiet moves at shallow depth where the static eval, even
+// given a generous margin, can't climb high enough to raise alpha.
+// condition to prune: static_eval + margin <= alpha
+// margin = C * depth + B
+pub const FP_MARGIN_PER_DEPTH: i16 = 200;
+pub const FP_MARGIN_BASE: i16 = 100;
+pub const FP_MAX_DEPTH: u8 = 2;

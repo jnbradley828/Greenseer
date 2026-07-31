@@ -16,8 +16,8 @@ use crate::engine::utils::{
 use crate::engine::{self, eval::relative_evaluate};
 use crate::engine::{
     search_heuristics::{
-        MATE_THRESHOLD, NMP_MIN_DEPTH, NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH,
-        RFP_MAX_DEPTH,
+        FP_MARGIN_BASE, FP_MARGIN_PER_DEPTH, FP_MAX_DEPTH, MATE_THRESHOLD, NMP_MIN_DEPTH,
+        NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH,
     },
     utils,
 };
@@ -255,6 +255,11 @@ pub fn negamax(
         // which are already restricted to a small, targeted move set - not worth the
         // classification cost reorder_moves always pays regardless of what's passed in.
         let mut legal_moves: ArrayVec<u16, 256>;
+        let mut first_quiet_idx: usize = usize::MAX;
+        // shared between RFP and FP below so a node that qualifies for both only pays for
+        // relative_evaluate once.
+        let mut static_eval: i16 = 0;
+        let mut se_calculated = false;
 
         if !quiescence && !check_extension {
             // reverse futility pruning: if the position is so good that eval >= beta + margin,
@@ -266,7 +271,8 @@ pub fn negamax(
                 && beta > -MATE_THRESHOLD
                 && !rules::is_check(&game.board, game.board.side_to_move)
             {
-                let static_eval = relative_evaluate(game);
+                static_eval = relative_evaluate(game);
+                se_calculated = true;
                 let margin = RFP_MARGIN_BASE + (depth as i16 * RFP_MARGIN_PER_DEPTH);
                 if static_eval - margin >= beta {
                     return (static_eval, 0, nodes, true);
@@ -328,7 +334,7 @@ pub fn negamax(
             } else {
                 tt_move
             };
-            reorder_moves(
+            first_quiet_idx = reorder_moves(
                 &game.board,
                 &mut legal_moves,
                 move_to_front,
@@ -343,7 +349,7 @@ pub fn negamax(
         let mut best_eval = -i16::MAX;
         let mut cutoff = false;
         let mut best_move = legal_moves[0];
-        for movei in legal_moves {
+        for (move_idx, movei) in legal_moves.into_iter().enumerate() {
             if state.stop.load(Ordering::Relaxed) {
                 return (0, best_move, nodes, false);
             }
@@ -351,6 +357,35 @@ pub fn negamax(
                 // if quiescence only search: skip non captures.
                 continue;
             }
+
+            // TO BE RETRIED AFTER IMPLEMENTING QUIET MOVE HISTORY TABLES
+            // futility pruning: at shallow depth, a quiet move whose static eval - even given a
+            // generous margin - can't climb up to alpha is assumed hopeless and skipped without
+            // being searched. move_idx != 0 guarantees at least one move is fully searched at
+            // this node regardless of bucket; move_idx >= first_quiet_idx additionally excludes
+            // the tt/capture/check/killer buckets reorder_moves placed ahead of it.
+            // disabled: SPRT'd across several margin/depth configs (see search_heuristics.rs)
+            // with no config clearing a positive result. root cause suspected to be
+            // reorder_moves's quiet bucket having no internal ordering, so the eligibility test
+            // doesn't correlate with "this move is probably bad" the way it needs to.
+            // if !quiescence
+            //     && !check_extension
+            //     && depth <= FP_MAX_DEPTH
+            //     && move_idx != 0
+            //     && move_idx >= first_quiet_idx
+            //     && alpha < MATE_THRESHOLD
+            //     && !rules::is_check(&game.board, game.board.side_to_move)
+            // {
+            //     if !se_calculated {
+            //         static_eval = relative_evaluate(game);
+            //         se_calculated = true;
+            //     }
+            //     let margin = FP_MARGIN_BASE + (depth as i16 * FP_MARGIN_PER_DEPTH);
+            //     if static_eval + margin <= alpha {
+            //         continue;
+            //     }
+            // }
+
             _ = game.make_move(movei, false, true);
             // a move was actually made here - negate the child's score (it's from the
             // opponent's perspective) and swap alpha/beta accordingly.
@@ -444,12 +479,14 @@ pub fn negamax(
 // then everything else untouched. best_move/killer_moves entries not actually legal here (a
 // killer is ply-indexed, not position-indexed, so it can carry over from a different position
 // that shared this ply) are silently skipped.
+// returns the index at which the trailing "rest" block (quiet, non-checking, non-killer moves)
+// begins - callers use this as the futility-pruning eligibility boundary.
 pub fn reorder_moves(
     board: &ChessBoard,
     legal_moves: &mut ArrayVec<u16, 256>,
     best_move: Option<u16>,
     killer_moves: [Option<u16>; 2],
-) -> () {
+) -> usize {
     let mut ordered: ArrayVec<u16, 256> = ArrayVec::new();
     let mut captures: ArrayVec<u16, 256> = ArrayVec::new();
     let mut checks: ArrayVec<u16, 256> = ArrayVec::new();
@@ -486,7 +523,9 @@ pub fn reorder_moves(
             ordered.push(mv);
         }
     }
+    let first_quiet_idx = ordered.len();
     ordered.extend(rest);
 
     *legal_moves = ordered;
+    first_quiet_idx
 }
