@@ -41,5 +41,8 @@ else
         | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/diagnostics/vs_main_depth4/${TIMESTAMP}.txt
 fi
 
+# analyze pgn output (avg depth / nps for dev vs main)
+python3 python/pgn_analysis.py "$TIMESTAMP"
+
 # cleanup
 rm -rf /tmp/Greenseer_main

@@ -6,3 +6,4 @@ lichess_update_reference.md
 /benches/tournament_configs
 /benches/results/pgn
 /benches/test_suites
+/python/.venv
