@@ -63,7 +63,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "oxi_chess_lib"
 version = "0.1.0"
-source = "git+https://github.com/jnbradley828/oxi_chess_lib#12b99648ecfee8bed646756a2865c1f3e4e58b0b"
+source = "git+https://github.com/jnbradley828/oxi_chess_lib#342283b86aa2db2c18791471e8fb96e9dc75d101"
 dependencies = [
  "arrayvec",
  "rand",

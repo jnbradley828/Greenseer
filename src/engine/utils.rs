@@ -471,3 +471,15 @@ pub fn retrieve_tt_or_none(tt: &mut TT, zobrist_key: u64) -> Option<(u64, i16, u
         return Some(tt_entry);
     }
 }
+
+// returns whether or not the side to move has any pieces (knights, bishops, rooks, or queens)
+// useful in detecting zugzwang
+pub fn has_pieces(board: &ChessBoard) -> bool {
+    let side_pieces = if board.side_to_move {
+        board.white_pieces
+    } else {
+        board.black_pieces
+    };
+
+    (board.knights | board.bishops | board.rooks | board.queens) & side_pieces != 0
+}

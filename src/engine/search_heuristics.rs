@@ -31,3 +31,8 @@ pub const INC_FRACTION_DENOM: u32 = 4;
 pub const RFP_MARGIN_PER_DEPTH: i16 = 150;
 pub const RFP_MARGIN_BASE: i16 = 120;
 pub const RFP_MAX_DEPTH: u8 = 6;
+
+// null move pruning prunes nodes where the position is so good, that even
+// skipping your move leads to a score >= beta.
+pub const NMP_MIN_DEPTH: u8 = 3;
+pub const NMP_REDUCTION: u8 = 2;

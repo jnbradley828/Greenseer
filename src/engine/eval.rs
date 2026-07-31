@@ -51,6 +51,7 @@ pub fn iteratively_deepen(
                 0,
                 age,
                 &mut best,
+                true,
             );
             nodes += dnodes;
             // negamax publishes to best incrementally as root moves complete, so this is always
@@ -173,8 +174,14 @@ pub fn positional_mods(
     for i in 0..6 {
         let (w_mg, w_eg, w_ms, w_au) =
             bb_to_posmod(w_bbs[i], i as u8, true, &game.board, b_king_sq, b_king_zone);
-        let (b_mg, b_eg, b_ms, b_au) =
-            bb_to_posmod(b_bbs[i], i as u8, false, &game.board, w_king_sq, w_king_zone);
+        let (b_mg, b_eg, b_ms, b_au) = bb_to_posmod(
+            b_bbs[i],
+            i as u8,
+            false,
+            &game.board,
+            w_king_sq,
+            w_king_zone,
+        );
         mg_modifier += w_mg + b_mg;
         eg_modifier += w_eg + b_eg;
         mobility_score += w_ms + b_ms;
@@ -524,6 +531,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                true,
             )
             .1,
         )
@@ -551,6 +559,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                true,
             )
             .1,
         )
@@ -578,6 +587,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                true,
             )
             .1,
         )
@@ -605,6 +615,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                true,
             )
             .1,
         )

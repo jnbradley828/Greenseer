@@ -10,13 +10,17 @@ use oxi_chess_lib::{
     rules,
 };
 
-use crate::engine::search_heuristics::{
-    MATE_THRESHOLD, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH,
-};
 use crate::engine::utils::{
     from_tt_score, is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
 };
 use crate::engine::{self, eval::relative_evaluate};
+use crate::engine::{
+    search_heuristics::{
+        MATE_THRESHOLD, NMP_MIN_DEPTH, NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH,
+        RFP_MAX_DEPTH,
+    },
+    utils,
+};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -130,6 +134,7 @@ pub fn negamax(
     ply: u8,
     age: u8,
     best: &mut RootBest,
+    allow_null: bool,
 ) -> (i16, u16, u64, bool) {
     let mut nodes: u64 = 1;
     if game.result != GameResult::InProgress {
@@ -204,6 +209,7 @@ pub fn negamax(
         if rules::is_check(&game.board, game.board.side_to_move) {
             return negamax(
                 game, 1, alpha, beta, state, false, true, qdepth, tt, killers, ply, age, best,
+                allow_null,
             );
         } else {
             // quiescence search: continue search until all captures are complete.
@@ -230,6 +236,7 @@ pub fn negamax(
                     ply,
                     age,
                     best,
+                    allow_null,
                 );
                 nodes += q_nodes;
                 // stand_pat is a floor: a quiet position is never worse than not capturing.
@@ -254,6 +261,7 @@ pub fn negamax(
             // don't even bother searching deeper. improves speed, accuracy irons itself out
             // over increased depth.
             // only use for low depths, non-mate beta values, and non-check positions.
+            // not stored in transposition table, as it is only a static eval of a position.
             if depth <= RFP_MAX_DEPTH
                 && beta > -MATE_THRESHOLD
                 && !rules::is_check(&game.board, game.board.side_to_move)
@@ -262,6 +270,49 @@ pub fn negamax(
                 let margin = RFP_MARGIN_BASE + (depth as i16 * RFP_MARGIN_PER_DEPTH);
                 if static_eval - margin >= beta {
                     return (static_eval, 0, nodes, true);
+                }
+            }
+
+            // null move pruning: if giving up your move (making a "null" move) still leads
+            // to a position so good it fails high (score >= beta) after a shallow serach,
+            // your actual best move would be too - so you can prune the subtree without
+            // searching real moves.
+            // only use for high depths, non-mate beta values, non-check-positions, and positions
+            // where player to move has major pieces on the board (no null move in zugzwang!)
+            // Do not allow consecutive null moves (set allow_null = false)
+            if allow_null
+                && depth >= NMP_MIN_DEPTH
+                && beta < MATE_THRESHOLD
+                && utils::has_pieces(&game.board)
+                && !rules::is_check(&game.board, game.board.side_to_move)
+            {
+                game.make_null_move().unwrap();
+                if game.result == GameResult::InProgress {
+                    let (score, _, null_nodes, completed) = negamax(
+                        game,
+                        depth - 1 - NMP_REDUCTION,
+                        -beta,
+                        -beta + 1,
+                        state.clone(),
+                        false,
+                        false,
+                        qdepth,
+                        tt,
+                        killers,
+                        ply + 1,
+                        age,
+                        best,
+                        false,
+                    );
+                    game.unmake_null_move().unwrap();
+                    nodes += null_nodes;
+                    if !completed {
+                        return (0, 0, nodes, false);
+                    } else if -score >= beta {
+                        return (-score, 0, nodes, true);
+                    }
+                } else {
+                    game.unmake_null_move().unwrap();
                 }
             }
 
@@ -317,6 +368,7 @@ pub fn negamax(
                 ply + 1,
                 age,
                 best,
+                true,
             );
             let eval = -child_eval;
             nodes += child_nodes;
