@@ -21,11 +21,14 @@ mkdir -p benches/results/vs_main_endgames
 mkdir -p benches/results/pgn/vs_main_endgames
 mkdir -p benches/tournament_configs
 
+# ignore SIGINT here so ctrl-c stops the fastchess tournament (which still receives the signal
+# directly) without killing this script - lets the analysis step below run on partial results.
+trap '' INT
 if [[ -n "$RESUME" ]]; then
     TIMESTAMP="$RESUME"
     caffeinate -s -i -m fastchess \
         -config file=benches/tournament_configs/${TIMESTAMP}.json stats=true \
-        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" >> benches/results/vs_main_endgames/${TIMESTAMP}.txt
+        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" >> benches/results/vs_main_endgames/${TIMESTAMP}.txt || true
 else
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     caffeinate -s -i -m fastchess \
@@ -39,8 +42,9 @@ else
         -log engine=false \
         -pgnout file=benches/results/pgn/vs_main_endgames/${TIMESTAMP}.pgn notation=san nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
         -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/test_suites/endgames.epd format=epd order=random -repeat \
-        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/results/vs_main_endgames/${TIMESTAMP}.txt
+        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/results/vs_main_endgames/${TIMESTAMP}.txt || true
 fi
+trap - INT
 
 # analyze pgn output (avg depth / nps for dev vs main)
 source python/.venv/bin/activate

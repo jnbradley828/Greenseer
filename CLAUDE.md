@@ -66,7 +66,8 @@ Strength is measured with [fastchess](https://github.com/Disservin/fastchess), r
 
 - `full_test_suite.zsh` / `full_test_suite_quick.zsh` / `full_test_suite_alltime.zsh` — run the full battery (middlegame + endgame tournaments); `full_test_suite.zsh e`/`m` controls which runs first
 - `vs_main_middlegames.zsh` / `vs_main_endgames.zsh` — full time control (`tc=10+0.1`), opening books from `benches/test_suites/` (e.g. `UHO_Lichess_4852_v1.epd`, `endgames.epd`)
-- `*_quick.zsh` variants — fast time control (`tc=1+0.01`) for rapid iteration, same SPRT bounds
+- `*_quick.zsh` variants — fast time control (`tc=1+0.01`, hyperbullet) for rapid iteration, same SPRT bounds. **These are quick sanity checks only** — the user typically cuts them off around 100-200 games and does not run them to full SPRT completion. A pass/fail read here is noise-level, not a merge decision.
+- The `tc=10+0.1` runs (`vs_main_middlegames.zsh` / `vs_main_endgames.zsh`) are the ones that must go to full SPRT completion — **only these determine whether a change is validated for `main`**.
 - `vs_main_depth4.zsh` — fixed depth=4 (not time-based) comparison
 - `vs_main_eigenmann_eg_puzzles*.zsh` — endgame tactical puzzle suite (`EigenmannEndgames.epd`)
 - All scripts accept `--resume TIMESTAMP` to continue a previous SPRT run using its saved `benches/tournament_configs/<timestamp>.json` — still rebuilds both binaries, so only valid if no code changed since that run started
