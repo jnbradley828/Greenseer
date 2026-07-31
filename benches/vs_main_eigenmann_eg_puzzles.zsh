@@ -43,7 +43,9 @@ else
 fi
 
 # analyze pgn output (avg depth / nps for dev vs main)
+source python/.venv/bin/activate
 python3 python/pgn_analysis.py "$TIMESTAMP"
+deactivate
 
 # cleanup
 rm -rf /tmp/Greenseer_main

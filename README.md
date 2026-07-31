@@ -22,26 +22,43 @@ The bot runs 24/7 on a self-managed [DigitalOcean](https://www.digitalocean.com/
 Greenseer uses **minimax** to explore the game tree, maximizing the engine's score and minimizing the opponent's at alternating depths. **Alpha-beta pruning** cuts branches that can't affect the final result, dramatically reducing the number of nodes evaluated.
 
 ### Iterative Deepening
-Rather than searching directly to a fixed depth, Greenseer uses **iterative deepening** — completing full searches at depth 1, 2, 3, ... up to the target depth. The best move found at each depth is used to **reorder moves** at the next iteration, placing the most promising candidate first. This improves alpha-beta efficiency significantly.
+Rather than searching directly to a fixed depth, Greenseer uses **iterative deepening** — completing full searches at depth 1, 2, 3, ... up to the target depth. The best move found at each depth is used to **reorder moves** at the next iteration, placing the most promising candidate first. The best move is also **published incrementally** as each root move completes, so an interrupted search (via `stop` or time running out mid-depth) always returns a valid, up-to-date answer rather than nothing.
+
+### Move Ordering
+Legal moves at each node are ordered to maximize alpha-beta cutoffs: the transposition table's stored best move first, then captures, then checks, then **killer moves** (quiet moves that caused a beta cutoff at the same ply in a sibling node), then everything else.
+
+### Search Pruning
+Beyond alpha-beta, Greenseer prunes with:
+- **Reverse futility pruning (RFP)** — at shallow depths, if the static evaluation already exceeds beta by a safe margin, the node is cut without searching further.
+- **Null move pruning (NMP)** — if skipping a move entirely ("passing") still produces a position good enough to fail high after a reduced-depth search, the real subtree is pruned, since an actual move should only do better.
 
 ### Quiescence Search
 To avoid evaluating positions mid-capture (the "horizon effect"), Greenseer extends the search at leaf nodes with a **quiescence search** — continuing to explore capture sequences until a quiet position is reached before applying the evaluation function. This prevents the engine from making short-sighted decisions based on incomplete tactical sequences.
 
 ### Transposition Table
-Greenseer uses a **transposition table** with **Zobrist hashing** to cache previously evaluated positions. Since the same position can be reached via different move orders, the table allows the engine to skip redundant work and retrieve scores for positions it has already analyzed, improving search efficiency significantly.
+Greenseer uses a **transposition table** with 64-bit **Zobrist hashing** (eliminating key collisions) to cache previously evaluated positions. Since the same position can be reached via different move orders, the table allows the engine to skip redundant work and retrieve scores for positions it has already analyzed. Entries are tagged with an **age**, so stale results from earlier in the game can be preferentially overwritten.
 
 ### Evaluation
-The position evaluator combines **material balance** (pawn=1, knight/bishop=3, rook=5, queen=9) with **piece-square tables** — per-piece bonus/penalty grids that reward good squares (e.g. centralized knights, advanced passed pawns) and penalize poor ones. Separate middlegame and endgame weights blend based on remaining material. Terminal states (checkmate, draw) are handled explicitly. The addition of piece-square tables measured a **+478 Elo gain** in self-play benchmarking.
+The position evaluator combines **material balance** (pawn=1, knight/bishop=3, rook=5, queen=9) with **piece-square tables** — per-piece bonus/penalty grids that reward good squares (e.g. centralized knights, advanced passed pawns) and penalize poor ones. Separate middlegame and endgame weights blend based on remaining material. On top of that, the evaluator scores:
+- **King safety** — attacker-weighted pressure on the king zone, pawn shield quality, and open/semi-open file danger near the king
+- **Pawn structure** — passed, isolated, backward, and doubled pawn terms
+- **Mobility** — legal move count per piece type
+- **Bishop pair, rook on open/semi-open file, and tempo bonuses**
+
+Terminal states (checkmate, draw) are handled explicitly. The addition of piece-square tables alone measured a **+478 Elo gain** in self-play benchmarking.
 
 ### UCI Compatibility
-The engine speaks UCI, including support for `go depth`, `go movetime`, and full time control (`wtime`/`btime`/`winc`/`binc`). A shared atomic flag allows the search to abort mid-tree on a `stop` command and return the best move found so far. Each search reports standard `info` lines with `depth`, `score cp`, `nodes`, `nps`, and `time`.
+The engine speaks UCI, including support for `go depth`, `go movetime`, and full time control (`wtime`/`btime`/`winc`/`binc`). A shared atomic flag allows the search to abort mid-tree on a `stop` command and return the best move found so far. Each search reports standard `info` lines with `depth`, `score cp`, `nodes`, `nps`, and `time`. Time management is tuned down to hyperbullet time controls, and no longer artificially caps the first few moves of a game, since [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot) is configured to play from an opening book.
 
 ### Benchmarking
-Engine strength is measured using [fastchess](https://github.com/Disservin/fastchess) to run automated matches between the current `dev` build and the previous `main` build. A Bash script automates the process — building both binaries and running the match under **SPRT** (Sequential Probability Ratio Test) with elo0=0, elo1=10, alpha=0.05, beta=0.05. Rather than a fixed game count, the test runs until it reaches statistical certainty that the new version is better or no better than the baseline, then reports the estimated Elo delta before merging.
+Engine strength is measured using [fastchess](https://github.com/Disservin/fastchess) to run automated matches between the current `dev` build and the `main` build. Bash scripts in `benches/` automate the process — building both binaries and running matches under **SPRT** (Sequential Probability Ratio Test) with elo0=0, elo1=10, alpha=0.05, beta=0.05. Rather than a fixed game count, each test runs until it reaches statistical certainty that the new version is better or no better than the baseline. Separate suites cover middlegame and endgame play, at both standard and quick time controls, plus a fixed-depth comparison and an endgame tactical puzzle set. Long-running tests can be stopped and resumed later without losing accumulated SPRT statistics. After each run, a Python script (`python/pgn_analysis.py`) parses the match PGN and reports average nodes-per-second and search depth for `dev` vs. `main`, so raw Elo results can be cross-checked against actual search performance.
 
 ---
 
 ## Planned Improvements
 
-- **Deeper evaluation** — king safety, pawn structure, and mobility terms; weights tuned via machine learning (Texel tuning)
+- **Texel tuning** — fit evaluation weights via machine learning instead of hand-tuning
 - **Neural network experimentation** — explore learned evaluation functions as an alternative to hand-crafted heuristics
+- **Pondering** — think on the opponent's time by continuing to search during their turn
+- **More positional evaluation terms** — connected/protected passed pawns, knight outposts, connected rooks, piece batteries (e.g. queen/rook stacked on a file — "Alekhine's gun"), and space
+- **More search pruning/reduction techniques** — late move reductions (LMR), late move pruning (LMP), futility pruning, principal variation search (PVS), and aspiration windows
