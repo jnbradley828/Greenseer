@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(cargo build --release)",
+      "Bash(cargo build)",
+      "Bash(cargo build *)",
+      "Bash(cargo check)",
+      "Bash(cargo check *)",
+      "Bash(cargo test)",
+      "Bash(cargo test *)",
+      "Bash(fastchess -help)",
+      "Bash(curl -s -o /dev/null -w *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/deny-commit-and-sprt.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
