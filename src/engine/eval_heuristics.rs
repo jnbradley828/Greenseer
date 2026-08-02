@@ -1,4 +1,4 @@
-pub const PIECE_VALUES: [i16; 5] = [100, 300, 300, 500, 900]; // [p, n, b, r, q]
+pub const PIECE_VALUES: [i16; 6] = [100, 300, 300, 500, 900, 0]; // [p, n, b, r, q, k]
 // span of combined (both sides) non-pawn material over which the mg/eg phase blend ramps
 // linearly from 0 to 1 - standalone tunable constant rather than derived from PIECE_VALUES,
 // since it's fit independently during Texel tuning like everything else here. starting value =

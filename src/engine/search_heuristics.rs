@@ -44,3 +44,6 @@ pub const NMP_REDUCTION: u8 = 2;
 pub const FP_MARGIN_PER_DEPTH: i16 = 200;
 pub const FP_MARGIN_BASE: i16 = 100;
 pub const FP_MAX_DEPTH: u8 = 2;
+
+// MVV-LVA victim weight
+pub const VICTIM_WEIGHT: i16 = 10;

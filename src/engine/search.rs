@@ -8,18 +8,22 @@ use oxi_chess_lib::{
     },
     moves::get_legal_moves,
     rules,
+    utils::{self, decode_move, encode_from_uci},
 };
 
-use crate::engine::utils::{
-    from_tt_score, is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
-};
 use crate::engine::{self, eval::relative_evaluate};
+use crate::engine::{
+    eval_heuristics::PIECE_VALUES,
+    utils::{
+        from_tt_score, is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
+    },
+};
 use crate::engine::{
     search_heuristics::{
         FP_MARGIN_BASE, FP_MARGIN_PER_DEPTH, FP_MAX_DEPTH, MATE_THRESHOLD, NMP_MIN_DEPTH,
-        NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH,
+        NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH, VICTIM_WEIGHT,
     },
-    utils,
+    utils::has_pieces,
 };
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -289,7 +293,7 @@ pub fn negamax(
             if allow_null
                 && depth >= NMP_MIN_DEPTH
                 && beta < MATE_THRESHOLD
-                && utils::has_pieces(&game.board)
+                && has_pieces(&game.board)
                 && !rules::is_check(&game.board, game.board.side_to_move)
             {
                 game.make_null_move().unwrap();
@@ -488,7 +492,7 @@ pub fn reorder_moves(
     killer_moves: [Option<u16>; 2],
 ) -> usize {
     let mut ordered: ArrayVec<u16, 256> = ArrayVec::new();
-    let mut captures: ArrayVec<u16, 256> = ArrayVec::new();
+    let mut captures: ArrayVec<(u16, i16), 256> = ArrayVec::new();
     let mut checks: ArrayVec<u16, 256> = ArrayVec::new();
     let mut rest: ArrayVec<u16, 256> = ArrayVec::new();
 
@@ -504,7 +508,7 @@ pub fn reorder_moves(
         } else if is_capture(mv) {
             // cheap flag check first - only pay for the pricier check test below on moves that
             // aren't already captures (a move that's both is treated as a capture).
-            captures.push(mv);
+            captures.push((mv, 0));
         } else if move_gives_check(board, mv) {
             checks.push(mv);
         } else if !killer_moves.contains(&Some(mv)) {
@@ -512,7 +516,28 @@ pub fn reorder_moves(
         }
         // else: quiet, non-checking, and a stored killer - placed in the killer pass below.
     }
-    ordered.extend(captures);
+
+    // MVV-LVA ordering for captures: order captures in descending order of the following formula:
+    // capture_score = k * value(victim) - value(aggressor)
+    for i in 0..captures.len() {
+        let [from_sqi, to_sqi, _] = decode_move(captures[i].0);
+
+        let aggressor_type: u8;
+        let victim_type: u8;
+        if 1u64 << to_sqi == board.en_passant {
+            aggressor_type = 0;
+            victim_type = 0;
+        } else {
+            aggressor_type = board.piece_type_at(from_sqi).unwrap();
+            victim_type = board.piece_type_at(to_sqi).unwrap(); // unwrap should be safe since there must be a piece there during a capture.
+        }
+        let aggressor_score = PIECE_VALUES[aggressor_type as usize];
+        let victim_score = VICTIM_WEIGHT * PIECE_VALUES[victim_type as usize];
+        captures[i].1 = victim_score - aggressor_score;
+    }
+    captures.sort_unstable_by_key(|&(_, score)| std::cmp::Reverse(score));
+
+    ordered.extend(captures.iter().map(|&(mv, _)| mv));
     ordered.extend(checks);
 
     for killer in killer_moves {

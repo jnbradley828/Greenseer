@@ -1,0 +1,148 @@
+Indexing opening suite...
+Finished game 2 (main vs dev): 0-1 {Black mates}
+Finished game 1 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 3 (dev vs main): 1-0 {White mates}
+Finished game 4 (main vs dev): 0-1 {Black mates}
+Finished game 5 (dev vs main): 1-0 {White mates}
+Finished game 6 (main vs dev): 0-1 {Black mates}
+Finished game 7 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 8 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 9 (dev vs main): 1-0 {White mates}
+Finished game 11 (dev vs main): 1-0 {White mates}
+Finished game 10 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 12 (main vs dev): 0-1 {Black mates}
+Finished game 13 (dev vs main): 1-0 {White mates}
+Finished game 14 (main vs dev): 1-0 {White mates}
+Finished game 15 (dev vs main): 0-1 {Black mates}
+Finished game 16 (main vs dev): 0-1 {Black mates}
+Finished game 17 (dev vs main): 1-0 {White mates}
+Finished game 18 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 19 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 20 (main vs dev): 1/2-1/2 {Draw by insufficient mating material}
+--------------------------------------------------
+Results of dev vs main (1+0.01, NULL, 128MB, UHO_Lichess_4852_v1.epd):
+Elo: 168.40 +/- 119.34, nElo: 266.18 +/- 152.27
+LOS: 99.97 %, DrawRatio: 40.00 %, PairsRatio: inf
+Games: 20, Wins: 11, Losses: 2, Draws: 7, Points: 14.5 (72.50 %)
+Ptnml(0-2): [0, 0, 4, 3, 3], WL/DD Ratio: 1.00
+LLR: 0.27 (9.0%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 21 (dev vs main): 0-1 {Black mates}
+Finished game 22 (main vs dev): 0-1 {Black mates}
+Finished game 23 (dev vs main): 1-0 {White mates}
+Finished game 24 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 25 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 26 (main vs dev): 1-0 {White mates}
+Finished game 27 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 28 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 29 (dev vs main): 0-1 {Black mates}
+Finished game 30 (main vs dev): 0-1 {Black mates}
+Finished game 31 (dev vs main): 1-0 {White mates}
+Finished game 32 (main vs dev): 1-0 {White mates}
+Finished game 33 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 34 (main vs dev): 0-1 {Black mates}
+Finished game 35 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 36 (main vs dev): 1-0 {White mates}
+Finished game 37 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 38 (main vs dev): 0-1 {Black mates}
+Finished game 39 (dev vs main): 1-0 {White mates}
+Finished game 40 (main vs dev): 1-0 {White mates}
+--------------------------------------------------
+Results of dev vs main (1+0.01, NULL, 128MB, UHO_Lichess_4852_v1.epd):
+Elo: 88.74 +/- 71.51, nElo: 141.84 +/- 107.67
+LOS: 99.51 %, DrawRatio: 45.00 %, PairsRatio: 4.50
+Games: 40, Wins: 18, Losses: 8, Draws: 14, Points: 25.0 (62.50 %)
+Ptnml(0-2): [0, 2, 9, 6, 3], WL/DD Ratio: 2.00
+LLR: 0.39 (13.4%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 41 (dev vs main): 1-0 {White mates}
+Finished game 43 (dev vs main): 0-1 {Black mates}
+Finished game 42 (main vs dev): 1-0 {White mates}
+Finished game 45 (dev vs main): 1-0 {White mates}
+Finished game 44 (main vs dev): 1-0 {White mates}
+Finished game 46 (main vs dev): 1-0 {White mates}
+Finished game 47 (dev vs main): 1/2-1/2 {Draw by fifty moves rule}
+Finished game 48 (main vs dev): 0-1 {Black mates}
+Finished game 49 (dev vs main): 0-1 {Black mates}
+Finished game 50 (main vs dev): 1-0 {White mates}
+Finished game 51 (dev vs main): 1-0 {White mates}
+Finished game 52 (main vs dev): 0-1 {Black mates}
+Finished game 53 (dev vs main): 0-1 {Black mates}
+Finished game 55 (dev vs main): 0-1 {Black mates}
+Finished game 54 (main vs dev): 0-1 {Black mates}
+Finished game 56 (main vs dev): 0-1 {Black mates}
+Finished game 57 (dev vs main): 0-1 {Black mates}
+Finished game 59 (dev vs main): 1-0 {White mates}
+Finished game 58 (main vs dev): 0-1 {Black mates}
+Finished game 60 (main vs dev): 0-1 {Black mates}
+--------------------------------------------------
+Results of dev vs main (1+0.01, NULL, 128MB, UHO_Lichess_4852_v1.epd):
+Elo: 64.42 +/- 68.39, nElo: 85.93 +/- 87.91
+LOS: 97.23 %, DrawRatio: 46.67 %, PairsRatio: 3.00
+Games: 60, Wins: 28, Losses: 17, Draws: 15, Points: 35.5 (59.17 %)
+Ptnml(0-2): [2, 2, 14, 7, 5], WL/DD Ratio: 3.67
+LLR: 0.37 (12.5%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 61 (dev vs main): 1-0 {White mates}
+Finished game 63 (dev vs main): 1-0 {White mates}
+Finished game 62 (main vs dev): 1-0 {White mates}
+Finished game 64 (main vs dev): 0-1 {Black mates}
+Finished game 65 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 67 (dev vs main): 0-1 {Black mates}
+Finished game 66 (main vs dev): 0-1 {Black mates}
+Finished game 68 (main vs dev): 0-1 {Black mates}
+Finished game 69 (dev vs main): 1-0 {White mates}
+Finished game 70 (main vs dev): 0-1 {Black mates}
+Finished game 71 (dev vs main): 0-1 {Black mates}
+Finished game 72 (main vs dev): 1-0 {White mates}
+Finished game 73 (dev vs main): 0-1 {Black mates}
+Finished game 74 (main vs dev): 0-1 {Black mates}
+Finished game 75 (dev vs main): 0-1 {Black mates}
+Finished game 76 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 77 (dev vs main): 0-1 {Black mates}
+Finished game 78 (main vs dev): 1-0 {White mates}
+Finished game 79 (dev vs main): 1-0 {White mates}
+Finished game 81 (dev vs main): 1-0 {White mates}
+Finished game 80 (main vs dev): 1/2-1/2 {Draw by fifty moves rule}
+--------------------------------------------------
+Results of dev vs main (1+0.01, NULL, 128MB, UHO_Lichess_4852_v1.epd):
+Elo: 52.51 +/- 63.79, nElo: 64.39 +/- 76.13
+LOS: 95.13 %, DrawRatio: 42.50 %, PairsRatio: 2.29
+Games: 80, Wins: 37, Losses: 25, Draws: 18, Points: 46.0 (57.50 %)
+Ptnml(0-2): [4, 3, 17, 9, 7], WL/DD Ratio: 4.67
+LLR: 0.37 (12.6%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 82 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 83 (dev vs main): 1/2-1/2 {Draw by insufficient mating material}
+Finished game 84 (main vs dev): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 85 (dev vs main): 1-0 {White mates}
+Finished game 86 (main vs dev): 0-1 {Black mates}
+Finished game 87 (dev vs main): 1-0 {White mates}
+Finished game 88 (main vs dev): 0-1 {Black mates}
+Finished game 89 (dev vs main): 1-0 {White mates}
+Finished game 90 (main vs dev): 1-0 {White mates}
+Finished game 91 (dev vs main): 1-0 {White mates}
+Finished game 93 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 92 (main vs dev): 0-1 {Black mates}
+Finished game 94 (main vs dev): 0-1 {Black mates}
+Finished game 95 (dev vs main): 1-0 {White mates}
+Finished game 96 (main vs dev): 0-1 {Black mates}
+Finished game 97 (dev vs main): 1-0 {White mates}
+Finished game 98 (main vs dev): 0-1 {Black mates}
+Finished game 99 (dev vs main): 1-0 {White mates}
+Finished game 100 (main vs dev): 1-0 {White mates}
+--------------------------------------------------
+Results of dev vs main (1+0.01, NULL, 128MB, UHO_Lichess_4852_v1.epd):
+Elo: 85.04 +/- 59.59, nElo: 102.27 +/- 68.10
+LOS: 99.84 %, DrawRatio: 40.00 %, PairsRatio: 3.29
+Games: 100, Wins: 51, Losses: 27, Draws: 22, Points: 62.0 (62.00 %)
+Ptnml(0-2): [4, 3, 20, 11, 12], WL/DD Ratio: 4.00
+LLR: 0.72 (24.6%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+Finished game 101 (dev vs main): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 102 (main vs dev): 1-0 {White mates}
+Finished game 103 (dev vs main): 0-1 {Black mates}
+Tournament was interrupted. To resume the tournament, run: fastchess -config file=benches/tournament_configs/20260801_211814_quick.json
+Finished match
+Total Time: 00:02:34 (hours:minutes:seconds)
+
