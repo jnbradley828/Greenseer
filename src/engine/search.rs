@@ -39,6 +39,10 @@ impl SearchState {
     }
 }
 
+// architectural bound on line length, not a tunable - matches negamax's own depth/ply type (u8),
+// so the pv buffer can never overflow regardless of what max_depth is called with.
+pub const MAX_PV_LEN: usize = u8::MAX as usize;
+
 // published incrementally by the root of negamax as root moves complete - always readable as
 // "the best confirmed answer so far", valid even if the search is interrupted mid-depth. lives
 // only on the search thread's own stack (passed down by &mut through the recursion), since
@@ -50,6 +54,10 @@ pub struct RootBest {
     // iteratively_deepen's loop is nominally on, since a depth that hasn't yet re-evaluated the
     // incumbent move (see negamax's root loop) can leave this reflecting an earlier depth.
     pub best_depth: u8,
+    // best_move followed by the rest of the expected line. can be shorter than best_depth would
+    // suggest - early returns (tt cutoff, rfp, nmp fail-high, stop) don't have a real subtree to
+    // report, so the line simply terminates there.
+    pub pv: ArrayVec<u16, MAX_PV_LEN>,
 }
 impl RootBest {
     pub fn new(fallback_move: u16) -> Self {
@@ -57,6 +65,7 @@ impl RootBest {
             best_move: fallback_move,
             best_score: -i16::MAX,
             best_depth: 0,
+            pv: ArrayVec::new(),
         }
     }
 }
@@ -138,6 +147,7 @@ pub fn negamax(
     ply: u8,
     age: u8,
     best: &mut RootBest,
+    pv: &mut ArrayVec<u16, MAX_PV_LEN>,
     allow_null: bool,
 ) -> (i16, u16, u64, bool) {
     let mut nodes: u64 = 1;
@@ -178,6 +188,10 @@ pub fn negamax(
                     best.best_move = tt_entry.4;
                     best.best_score = tt_score;
                     best.best_depth = depth;
+                    // tt slots one ply deeper can already be stale/overwritten - only this move
+                    // is trustworthy here, not a walked continuation.
+                    best.pv.clear();
+                    best.pv.push(tt_entry.4);
                 }
             };
             match tt_entry.3 {
@@ -211,8 +225,10 @@ pub fn negamax(
         // check extension: if the position is check: search depth 1. no move made - same
         // board/side, so no negation or alpha/beta swap.
         if rules::is_check(&game.board, game.board.side_to_move) {
+            // same ply, same node conceptually - just refining via check-extension, so the line
+            // being built is still this node's line. forward pv itself, not a child buffer.
             return negamax(
-                game, 1, alpha, beta, state, false, true, qdepth, tt, killers, ply, age, best,
+                game, 1, alpha, beta, state, false, true, qdepth, tt, killers, ply, age, best, pv,
                 allow_null,
             );
         } else {
@@ -225,7 +241,7 @@ pub fn negamax(
                 return (stand_pat_eval, 0, nodes, true);
             } else {
                 // no move made here either (same position, just now searching captures only) -
-                // no negation or swap.
+                // no negation or swap. same node conceptually, so forward pv itself.
                 let (q_eval, mv, q_nodes, q_completed) = negamax(
                     game,
                     1,
@@ -240,6 +256,7 @@ pub fn negamax(
                     ply,
                     age,
                     best,
+                    pv,
                     allow_null,
                 );
                 nodes += q_nodes;
@@ -298,6 +315,8 @@ pub fn negamax(
             {
                 game.make_null_move().unwrap();
                 if game.result == GameResult::InProgress {
+                    // null move isn't a real move in our line - scratch buffer, discarded.
+                    let mut null_pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
                     let (score, _, null_nodes, completed) = negamax(
                         game,
                         depth - 1 - NMP_REDUCTION,
@@ -312,6 +331,7 @@ pub fn negamax(
                         ply + 1,
                         age,
                         best,
+                        &mut null_pv,
                         false,
                     );
                     game.unmake_null_move().unwrap();
@@ -390,6 +410,9 @@ pub fn negamax(
             //     }
             // }
 
+            // fresh scratch buffer per move - only spliced into our own pv below if movei turns
+            // out to be the new best.
+            let mut child_pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
             _ = game.make_move(movei, false, true);
             // a move was actually made here - negate the child's score (it's from the
             // opponent's perspective) and swap alpha/beta accordingly.
@@ -407,6 +430,7 @@ pub fn negamax(
                 ply + 1,
                 age,
                 best,
+                &mut child_pv,
                 true,
             );
             let eval = -child_eval;
@@ -421,6 +445,9 @@ pub fn negamax(
             if eval > best_eval {
                 best_eval = eval;
                 best_move = movei;
+                pv.clear();
+                pv.push(movei);
+                pv.extend(child_pv.iter().copied());
             }
             // root only: publish incrementally so best.best_move/best_score always reflect the
             // best confirmed answer, even if interrupted mid-depth. checked every move, not
@@ -435,10 +462,12 @@ pub fn negamax(
                     best.best_move = best_move;
                     best.best_score = best_eval;
                     best.best_depth = depth;
+                    best.pv = pv.clone();
                 } else if best_eval > best.best_score {
                     best.best_move = best_move;
                     best.best_score = best_eval;
                     best.best_depth = depth;
+                    best.pv = pv.clone();
                 }
             }
             if best_eval > alpha {

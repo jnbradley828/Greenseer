@@ -1,5 +1,6 @@
+use arrayvec::ArrayVec;
 use crate::engine::eval_heuristics::*;
-use crate::engine::search::{self, RootBest, SearchState, TT, negamax};
+use crate::engine::search::{self, MAX_PV_LEN, RootBest, SearchState, TT, negamax};
 use crate::engine::search_heuristics::MAX_QDEPTH;
 use crate::engine::utils::{
     KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, king_file_weakness_mult, pawn_backward,
@@ -37,6 +38,7 @@ pub fn iteratively_deepen(
             return best.best_move;
         } else {
             let legal_moves = game.legal_moves.clone();
+            let mut pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
             let (_, _, dnodes, _) = negamax(
                 game,
                 d,
@@ -51,6 +53,7 @@ pub fn iteratively_deepen(
                 0,
                 age,
                 &mut best,
+                &mut pv,
                 true,
             );
             nodes += dnodes;
@@ -58,13 +61,23 @@ pub fn iteratively_deepen(
             // the authoritative answer regardless of whether the depth finished or was
             // interrupted mid-loop. best_depth (not the loop variable d) reflects which depth
             // this result actually came from.
-            let best_uci = decode_to_uci(best.best_move).unwrap();
             if !state.stop.load(Ordering::Relaxed) {
                 let elapsed = start_time.elapsed().as_millis().max(1);
                 let nps = ((nodes * 1000) as u128) / elapsed;
                 let (score, reported_depth) = (best.best_score, best.best_depth);
+                // pv can be shorter than reported_depth (early returns don't extend it) - fall
+                // back to just best_move if it's somehow empty.
+                let pv_uci = if best.pv.is_empty() {
+                    decode_to_uci(best.best_move).unwrap()
+                } else {
+                    best.pv
+                        .iter()
+                        .map(|&mv| decode_to_uci(mv).unwrap())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                };
                 println!(
-                    "info depth {reported_depth} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {best_uci}"
+                    "info depth {reported_depth} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {pv_uci}"
                 );
             }
             game.legal_moves = legal_moves; // restore legal_moves
@@ -516,6 +529,7 @@ mod tests {
             Some("k7/7P/8/8/8/8/8/K7 w - - 0 1"),
         );
         let mut tt = TT::new(128);
+        let mut pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
             negamax(
                 &mut game,
@@ -531,6 +545,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                &mut pv,
                 true,
             )
             .1,
@@ -544,6 +559,7 @@ mod tests {
             Some("k7/8/KQ6/8/8/8/8/8 w - - 0 1"),
         );
         let mut tt = TT::new(128);
+        let mut pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
             negamax(
                 &mut game,
@@ -559,6 +575,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                &mut pv,
                 true,
             )
             .1,
@@ -572,6 +589,7 @@ mod tests {
             Some("k7/8/8/3q4/8/8/8/K2R4 w - - 0 1"),
         );
         let mut tt = TT::new(128);
+        let mut pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
             negamax(
                 &mut game,
@@ -587,6 +605,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                &mut pv,
                 true,
             )
             .1,
@@ -600,6 +619,7 @@ mod tests {
             Some("k2r4/8/8/8/8/8/8/K2R4 b - - 0 1"),
         );
         let mut tt = TT::new(128);
+        let mut pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
         let best_move_uci = oxi_chess_lib::utils::decode_to_uci(
             negamax(
                 &mut game,
@@ -615,6 +635,7 @@ mod tests {
                 0,
                 0,
                 &mut RootBest::new(0),
+                &mut pv,
                 true,
             )
             .1,
