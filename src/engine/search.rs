@@ -493,7 +493,6 @@ pub fn reorder_moves(
 ) -> usize {
     let mut ordered: ArrayVec<u16, 256> = ArrayVec::new();
     let mut captures: ArrayVec<(u16, i16), 256> = ArrayVec::new();
-    let mut checks: ArrayVec<u16, 256> = ArrayVec::new();
     let mut rest: ArrayVec<u16, 256> = ArrayVec::new();
 
     if let Some(mv) = best_move
@@ -506,11 +505,7 @@ pub fn reorder_moves(
         if Some(mv) == best_move {
             continue;
         } else if is_capture(mv) {
-            // cheap flag check first - only pay for the pricier check test below on moves that
-            // aren't already captures (a move that's both is treated as a capture).
             captures.push((mv, 0));
-        } else if move_gives_check(board, mv) {
-            checks.push(mv);
         } else if !killer_moves.contains(&Some(mv)) {
             rest.push(mv);
         }
@@ -538,7 +533,6 @@ pub fn reorder_moves(
     captures.sort_unstable_by_key(|&(_, score)| std::cmp::Reverse(score));
 
     ordered.extend(captures.iter().map(|&(mv, _)| mv));
-    ordered.extend(checks);
 
     for killer in killer_moves {
         if let Some(mv) = killer

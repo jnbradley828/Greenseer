@@ -4,10 +4,33 @@ set -e
 # --resume TIMESTAMP: continue a previous run's SPRT (same config/stats) instead of starting a
 # fresh one. still rebuilds both engines every time - a resumed test is only valid if the code
 # under test hasn't changed since the run it's continuing.
+# --bounds ELO0 ELO1: sprt indifference region, e.g. --bounds -5 0 for a non-regression test.
+# defaults to 0 10 (looking for a clear improvement) if omitted.
+# --depth DEPTH: fixed search depth for both engines. defaults to 4 if omitted.
 RESUME=""
-if [[ "$1" == "--resume" ]]; then
-    RESUME="$2"
-fi
+ELO0=0
+ELO1=10
+DEPTH=4
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --resume)
+            RESUME="$2"
+            shift 2
+            ;;
+        --bounds)
+            ELO0="$2"
+            ELO1="$3"
+            shift 3
+            ;;
+        --depth)
+            DEPTH="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # build dev
 cargo build --release
@@ -17,8 +40,8 @@ rm -rf /tmp/Greenseer_main
 git clone --branch main --depth 1 git@github.com:jnbradley828/Greenseer.git /tmp/Greenseer_main
 cargo build --release --manifest-path /tmp/Greenseer_main/Cargo.toml
 
-mkdir -p benches/diagnostics/vs_main_depth4
-mkdir -p benches/diagnostics/pgn/vs_main_depth4
+mkdir -p benches/diagnostics/vs_main_depth
+mkdir -p benches/diagnostics/pgn/vs_main_depth
 mkdir -p benches/tournament_configs
 
 # ignore SIGINT here so ctrl-c stops the fastchess tournament (which still receives the signal
@@ -28,20 +51,22 @@ if [[ -n "$RESUME" ]]; then
     TIMESTAMP="$RESUME"
     caffeinate -s -i -m fastchess \
         -config file=benches/tournament_configs/${TIMESTAMP}.json stats=true \
-        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" >> benches/diagnostics/vs_main_depth4/${TIMESTAMP}.txt || true
+        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" >> benches/diagnostics/vs_main_depth/${TIMESTAMP}.txt || true
 else
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     caffeinate -s -i -m fastchess \
         -engine cmd=./target/release/Greenseer name=dev \
         -engine cmd=/tmp/Greenseer_main/target/release/Greenseer name=main \
-        -each proto=uci depth=4 \
-        -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05 \
+        -each proto=uci depth=${DEPTH} \
+        -sprt elo0=${ELO0} elo1=${ELO1} alpha=0.05 beta=0.05 \
         -rounds 50 \
         -config outname=benches/tournament_configs/${TIMESTAMP}.json \
         -concurrency 2 \
         -log engine=false \
-        -pgnout file=benches/diagnostics/pgn/vs_main_depth4/${TIMESTAMP}.pgn notation=san nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
-        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/diagnostics/vs_main_depth4/${TIMESTAMP}.txt || true
+        -pgnout file=benches/diagnostics/pgn/vs_main_depth/${TIMESTAMP}.pgn notation=san nodes=true seldepth=true nps=true hashfull=true tbhits=true pv=true timeleft=true latency=true \
+        -openings file=/Users/joshbradley/Desktop/Projects/Current/Greenseer/benches/test_suites/UHO_Lichess_4852_v1.epd format=epd order=random -repeat \
+        | grep --line-buffered -v "Warning" | tee /dev/tty | grep --line-buffered -v "Started game" > benches/diagnostics/vs_main_depth/${TIMESTAMP}.txt || true
+
 fi
 trap - INT
 

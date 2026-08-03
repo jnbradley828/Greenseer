@@ -4,10 +4,27 @@ set -e
 # --resume TIMESTAMP: continue a previous run's SPRT (same config/stats) instead of starting a
 # fresh one. still rebuilds both engines every time - a resumed test is only valid if the code
 # under test hasn't changed since the run it's continuing.
+# --bounds ELO0 ELO1: sprt indifference region, e.g. --bounds -5 0 for a non-regression test.
+# defaults to 0 10 (looking for a clear improvement) if omitted.
 RESUME=""
-if [[ "$1" == "--resume" ]]; then
-    RESUME="$2"
-fi
+ELO0=0
+ELO1=10
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --resume)
+            RESUME="$2"
+            shift 2
+            ;;
+        --bounds)
+            ELO0="$2"
+            ELO1="$3"
+            shift 3
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # build dev
 cargo build --release
@@ -35,7 +52,7 @@ else
         -engine cmd=./target/release/Greenseer name=dev \
         -engine cmd=/tmp/Greenseer_main/target/release/Greenseer name=main \
         -each proto=uci tc=10+0.1 \
-        -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05 \
+        -sprt elo0=${ELO0} elo1=${ELO1} alpha=0.05 beta=0.05 \
         -rounds 100000 \
         -config outname=benches/tournament_configs/${TIMESTAMP}.json \
         -concurrency 2 \

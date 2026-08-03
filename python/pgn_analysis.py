@@ -107,14 +107,24 @@ def main():
         table.add_column("Engine Version")
         table.add_column("Avg NPS", justify = "right")
         table.add_column("Avg Depth", justify = "right")
+        table.add_column("Total Nodes", justify = "right")
+        table.add_column("Total Time (s)", justify = "right")
 
-        table.add_row("dev", f"{dev_avg_nps:,.0f}", f"{dev_avg_depth:,.2f}")
-        table.add_row("main", f"{main_avg_nps:,.0f}", f"{main_avg_depth:,.2f}")
-        table.add_row("abs_diff", f"{dev_avg_nps - main_avg_nps:+,.0f}", f"{dev_avg_depth - main_avg_depth:+,.2f}")
+        table.add_row("dev", f"{dev_avg_nps:,.0f}", f"{dev_avg_depth:,.2f}", f"{total_dev_nodes:,.0f}", f"{total_dev_time:,.2f}")
+        table.add_row("main", f"{main_avg_nps:,.0f}", f"{main_avg_depth:,.2f}", f"{total_main_nodes:,.0f}", f"{total_main_time:,.2f}")
+        table.add_row(
+            "abs_diff",
+            f"{dev_avg_nps - main_avg_nps:+,.0f}",
+            f"{dev_avg_depth - main_avg_depth:+,.2f}",
+            f"{total_dev_nodes - total_main_nodes:+,.0f}",
+            f"{total_dev_time - total_main_time:+,.2f}",
+        )
         table.add_row(
             "pct_diff",
             f"{(dev_avg_nps - main_avg_nps) / main_avg_nps * 100:+,.2f}%",
             f"{(dev_avg_depth - main_avg_depth) / main_avg_depth * 100:+,.2f}%",
+            f"{(total_dev_nodes - total_main_nodes) / total_main_nodes * 100:+,.2f}%",
+            f"{(total_dev_time - total_main_time) / total_main_time * 100:+,.2f}%",
         )
 
         output_path = str(pgn_path.parent).replace("pgn/", "")
