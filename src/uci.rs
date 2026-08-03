@@ -44,6 +44,7 @@ pub fn handle_command(cmd: &str, game: &mut ChessGame, state: Arc<SearchState>, 
         "go" => handle_go(&parts, game, Arc::clone(&state), tt),
         "quit" => std::process::exit(0),
         "stop" => handle_stop(Arc::clone(&state)),
+        "ponderhit" => handle_ponderhit(Arc::clone(&state)),
         _ => {}
     }
 }
@@ -52,6 +53,7 @@ fn uci_response() {
     println!("id name Greenseer 0.1");
     println!("id author Joshua Bradley");
     println!("option name Hash type spin default 128 min 1 max 65536");
+    println!("option name Ponder type check default true");
     println!("uciok");
 }
 
@@ -135,13 +137,15 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
         .position(|&p| p == "binc")
         .and_then(|i| parts.get(i + 1))
         .and_then(|d| d.parse::<u32>().ok());
+    let pondering = parts.contains(&"ponder");
+    state.ponder.store(pondering, Ordering::Relaxed);
 
     match (depth, movetime, wtime, btime, winc, binc) {
         (_, Some(mt), _, _, _, _) => {
             let cancel = Arc::new(AtomicBool::new(false));
             let cancel_c = Arc::clone(&cancel);
-
             let state_c = Arc::clone(&state);
+
             thread::spawn(move || {
                 thread::sleep(Duration::from_millis(mt as u64));
                 if !cancel_c.load(Ordering::Relaxed) {
@@ -152,25 +156,41 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
             let mut game_clone = game.clone();
             let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let best_move =
+                let (best_move, pv) =
                     iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
                 cancel.store(true, Ordering::Relaxed);
                 let uci_move = decode_to_uci(best_move).unwrap();
-                println!("bestmove {}", uci_move);
+                if let Some(&ponder_move) = pv.get(1) {
+                    println!(
+                        "bestmove {} ponder {}",
+                        uci_move,
+                        decode_to_uci(ponder_move).unwrap()
+                    );
+                } else {
+                    println!("bestmove {}", uci_move);
+                }
             });
         }
         (Some(d), _, None, None, None, None) => {
             let mut game_clone = game.clone();
             let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let best_move = iteratively_deepen(
+                let (best_move, pv) = iteratively_deepen(
                     &mut game_clone,
                     depth.unwrap(),
                     Arc::clone(&state),
                     &mut tt_clone,
                 );
                 let uci_move = decode_to_uci(best_move).unwrap();
-                println!("bestmove {}", uci_move);
+                if let Some(&ponder_move) = pv.get(1) {
+                    println!(
+                        "bestmove {} ponder {}",
+                        uci_move,
+                        decode_to_uci(ponder_move).unwrap()
+                    );
+                } else {
+                    println!("bestmove {}", uci_move);
+                }
             });
         }
         (_, _, Some(wt), Some(bt), _, _) => {
@@ -193,10 +213,20 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
 
             let cancel = Arc::new(AtomicBool::new(false));
             let cancel_c = Arc::clone(&cancel);
-
             let state_c = Arc::clone(&state);
+
             thread::spawn(move || {
-                thread::sleep(Duration::from_millis(mt as u64));
+                // don't start the mt timer if pondering.
+                while state_c.ponder.load(Ordering::Relaxed)
+                    && !state_c.stop.load(Ordering::Relaxed)
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                // don't sleep for mt if stop is already called (ponder miss scenario)
+                if !state_c.stop.load(Ordering::Relaxed) {
+                    thread::sleep(Duration::from_millis(mt as u64));
+                }
+
                 if !cancel_c.load(Ordering::Relaxed) {
                     state_c.stop.store(true, Ordering::Relaxed);
                 }
@@ -205,17 +235,29 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
             let mut game_clone = game.clone();
             let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
             thread::spawn(move || {
-                let best_move =
+                let (best_move, pv) =
                     iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
                 cancel.store(true, Ordering::Relaxed);
                 let uci_move = decode_to_uci(best_move).unwrap();
-                println!("bestmove {}", uci_move);
+                if let Some(&ponder_move) = pv.get(1) {
+                    println!(
+                        "bestmove {} ponder {}",
+                        uci_move,
+                        decode_to_uci(ponder_move).unwrap()
+                    );
+                } else {
+                    println!("bestmove {}", uci_move);
+                }
             });
         }
         _ => {
             println!("bestmove 0000")
         }
     }
+}
+
+fn handle_ponderhit(state: Arc<SearchState>) {
+    state.ponder.store(false, Ordering::Relaxed);
 }
 
 fn handle_stop(state: Arc<SearchState>) {

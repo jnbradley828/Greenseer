@@ -30,11 +30,13 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub struct SearchState {
     pub stop: AtomicBool,
+    pub ponder: AtomicBool,
 }
 impl SearchState {
     pub fn new() -> Self {
         Self {
             stop: AtomicBool::new(false),
+            ponder: AtomicBool::new(false),
         }
     }
 }

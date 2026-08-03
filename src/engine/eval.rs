@@ -1,4 +1,3 @@
-use arrayvec::ArrayVec;
 use crate::engine::eval_heuristics::*;
 use crate::engine::search::{self, MAX_PV_LEN, RootBest, SearchState, TT, negamax};
 use crate::engine::search_heuristics::MAX_QDEPTH;
@@ -6,6 +5,7 @@ use crate::engine::utils::{
     KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, king_file_weakness_mult, pawn_backward,
     pawn_isolated, pawn_passed, pawn_shield_score,
 };
+use arrayvec::ArrayVec;
 use oxi_chess_lib;
 use oxi_chess_lib::board::ChessBoard;
 use oxi_chess_lib::magic_tables::ROOK_ATTACKS;
@@ -23,7 +23,7 @@ pub fn iteratively_deepen(
     max_depth: u8,
     state: Arc<SearchState>,
     tt: &mut TT,
-) -> u16 {
+) -> (u16, ArrayVec<u16, 255>) {
     println!("info string start eval {}", evaluate(game));
     let start_time = Instant::now();
     let mut nodes = 0;
@@ -35,7 +35,7 @@ pub fn iteratively_deepen(
 
     for d in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
-            return best.best_move;
+            return (best.best_move, best.pv);
         } else {
             let legal_moves = game.legal_moves.clone();
             let mut pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
@@ -83,7 +83,7 @@ pub fn iteratively_deepen(
             game.legal_moves = legal_moves; // restore legal_moves
         }
     }
-    return best.best_move;
+    return (best.best_move, best.pv);
 }
 
 // returns objective material count
