@@ -77,7 +77,6 @@ impl RootBest {
 #[derive(Clone)]
 pub struct TT {
     pub entries: Arc<Vec<(AtomicU64, AtomicU64)>>,
-    pub size_mb: usize,
 }
 impl TT {
     pub fn new(size_mb: usize) -> Self {
@@ -87,7 +86,14 @@ impl TT {
             .collect();
         Self {
             entries: Arc::new(entry_vec),
-            size_mb: size_mb,
+        }
+    }
+
+    // zeroes every slot in place, visible to all clones immediately.
+    pub fn clear(&self) {
+        for (key, data) in self.entries.iter() {
+            key.store(0, Ordering::Relaxed);
+            data.store(0, Ordering::Relaxed);
         }
     }
 }
@@ -578,4 +584,36 @@ pub fn reorder_moves(
 
     *legal_moves = ordered;
     first_quiet_idx
+}
+
+#[cfg(test)]
+mod tt_clone_share_test {
+    use super::TT;
+    use std::sync::atomic::Ordering;
+    use std::thread;
+
+    #[test]
+    fn clone_shares_the_same_underlying_entries() {
+        let tt = TT::new(1);
+        let tt_a = tt.clone();
+        let tt_b = tt.clone();
+
+        assert!(
+            std::sync::Arc::ptr_eq(&tt_a.entries, &tt_b.entries),
+            "clones point at different allocations - TT is NOT sharing entries"
+        );
+
+        let idx = 5usize;
+        thread::spawn(move || {
+            tt_a.entries[idx].1.store(123456789, Ordering::Relaxed);
+        })
+        .join()
+        .unwrap();
+
+        let seen = tt_b.entries[idx].1.load(Ordering::Relaxed);
+        assert_eq!(
+            seen, 123456789,
+            "write through tt_a's clone was not visible through tt_b's clone"
+        );
+    }
 }

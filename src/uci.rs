@@ -1,5 +1,5 @@
 use crate::engine::eval::iteratively_deepen;
-use crate::engine::search::{SearchState, TT};
+use crate::engine::search::{RootBest, SearchState, TT};
 use crate::engine::search_heuristics::{
     INC_FRACTION_DENOM, INC_FRACTION_NUM, MOVE_OVERHEAD, PANIC_THRESHOLD_MS,
     SINGLE_LEGAL_MOVE_TIME_MS, TIME_DIVISOR,
@@ -8,7 +8,7 @@ use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::game::GameResult::InProgress;
 use oxi_chess_lib::moves::get_legal_moves;
 use oxi_chess_lib::utils::decode_to_uci;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::time::Duration;
 use std::{
     io::{self, BufRead},
@@ -20,28 +20,35 @@ pub fn run() {
     let mut game = ChessGame::initialize((1, 1), None);
     let state = Arc::new(SearchState::new());
     let mut tt = TT::new(128);
+    let mut threads: usize = 1;
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
-        handle_command(&line, &mut game, Arc::clone(&state), &mut tt);
+        handle_command(&line, &mut game, Arc::clone(&state), &mut tt, &mut threads);
     }
 }
 
-pub fn handle_command(cmd: &str, game: &mut ChessGame, state: Arc<SearchState>, tt: &mut TT) {
+pub fn handle_command(
+    cmd: &str,
+    game: &mut ChessGame,
+    state: Arc<SearchState>,
+    tt: &mut TT,
+    threads: &mut usize,
+) {
     let parts: Vec<&str> = cmd.trim().split_whitespace().collect();
     if parts.is_empty() {
         return;
     }
     match parts[0] {
         "uci" => uci_response(),
-        "setoption" => handle_setoption(&parts, tt),
+        "setoption" => handle_setoption(&parts, tt, threads),
         "isready" => println!("readyok"),
         "ucinewgame" => {
             *game = ChessGame::initialize((1, 1), None);
-            *tt = TT::new(128);
+            tt.clear();
         }
         "position" => handle_position(&parts, game),
-        "go" => handle_go(&parts, game, Arc::clone(&state), tt),
+        "go" => handle_go(&parts, game, Arc::clone(&state), tt, threads),
         "quit" => std::process::exit(0),
         "stop" => handle_stop(Arc::clone(&state)),
         "ponderhit" => handle_ponderhit(Arc::clone(&state)),
@@ -53,21 +60,31 @@ fn uci_response() {
     println!("id name Greenseer 0.1");
     println!("id author Joshua Bradley");
     println!("option name Hash type spin default 128 min 1 max 65536");
+    println!("option name Threads type spin default 1 min 1 max 1024");
     println!("option name Ponder type check default true");
     println!("uciok");
 }
 
-fn handle_setoption(parts: &[&str], tt: &mut TT) {
-    let tt_parts = [
-        parts.get(1) == Some(&"name"),
-        parts.get(2) == Some(&"Hash"),
-        parts.get(3) == Some(&"value"),
-        parts.get(4).unwrap_or(&"a").parse::<usize>().is_ok(),
-    ];
+fn handle_setoption(parts: &[&str], tt: &mut TT, threads: &mut usize) {
+    if parts.get(1) != Some(&"name") || parts.get(3) != Some(&"value") {
+        return;
+    }
+    let Some(value) = parts.get(4) else {
+        return;
+    };
 
-    if tt_parts.iter().all(|&x| x) {
-        let tt_size = parts[4].parse::<usize>().unwrap();
-        *tt = TT::new(tt_size);
+    match parts.get(2) {
+        Some(&"Hash") => {
+            if let Ok(size_mb) = value.parse::<usize>() {
+                *tt = TT::new(size_mb);
+            }
+        }
+        Some(&"Threads") => {
+            if let Ok(n) = value.parse::<usize>() {
+                *threads = n.max(1);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -99,44 +116,115 @@ fn handle_position(parts: &[&str], game: &mut ChessGame) {
     }
 }
 
-fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: &mut TT) {
+// looks up a "<name> <value>" pair anywhere in a "go" command's parts and parses the value.
+fn parse_go_param<T: std::str::FromStr>(parts: &[&str], name: &str) -> Option<T> {
+    parts
+        .iter()
+        .position(|&p| p == name)
+        .and_then(|i| parts.get(i + 1))
+        .and_then(|d| d.parse::<T>().ok())
+}
+
+// reports the chosen move (and ponder move, if any).
+fn print_bestmove(best: &RootBest) {
+    let uci_move = decode_to_uci(best.best_move).unwrap();
+    if let Some(&ponder_move) = best.pv.get(1) {
+        println!(
+            "bestmove {} ponder {}",
+            uci_move,
+            decode_to_uci(ponder_move).unwrap()
+        );
+    } else {
+        println!("bestmove {}", uci_move);
+    }
+}
+
+// spawns `threads` searches sharing tt, picks the deepest result, reports bestmove.
+fn spawn_lazy_smp(
+    game: &ChessGame,
+    tt: &TT,
+    state: Arc<SearchState>,
+    threads: usize,
+    max_depth: u8,
+    cancel: Option<Arc<AtomicBool>>,
+) {
+    if threads == 1 {
+        // single thread - skip the scope/Vec machinery.
+        let mut game_clone = game.clone();
+        let mut tt_clone = tt.clone();
+        thread::spawn(move || {
+            let nodes = AtomicU64::new(0);
+            let depth_reported = AtomicU8::new(0);
+            let best = iteratively_deepen(
+                &mut game_clone,
+                max_depth,
+                state,
+                &mut tt_clone,
+                &nodes,
+                &depth_reported,
+            );
+            if let Some(cancel) = cancel {
+                cancel.store(true, Ordering::Relaxed);
+            }
+            print_bestmove(&best);
+        });
+        return;
+    }
+
+    let worker_inputs: Vec<(ChessGame, TT)> = (0..threads).map(|_| (game.clone(), tt.clone())).collect();
+
+    thread::spawn(move || {
+        let mut results: Vec<Option<RootBest>> = (0..threads).map(|_| None).collect();
+        // shared across workers: live node total + first-to-report-depth tracker.
+        let nodes = AtomicU64::new(0);
+        let depth_reported = AtomicU8::new(0);
+
+        thread::scope(|s| {
+            for (slot, (mut game_owned, mut tt_owned)) in results.iter_mut().zip(worker_inputs) {
+                let state_clone = Arc::clone(&state);
+                let nodes_ref = &nodes;
+                let depth_reported_ref = &depth_reported;
+                s.spawn(move || {
+                    *slot = Some(iteratively_deepen(
+                        &mut game_owned,
+                        max_depth,
+                        state_clone,
+                        &mut tt_owned,
+                        nodes_ref,
+                        depth_reported_ref,
+                    ));
+                });
+            }
+        });
+
+        if let Some(cancel) = cancel {
+            cancel.store(true, Ordering::Relaxed);
+        }
+
+        if let Some(best) = results.into_iter().flatten().max_by_key(|b| b.best_depth) {
+            print_bestmove(&best);
+        }
+    });
+}
+
+fn handle_go(
+    parts: &[&str],
+    game: &mut ChessGame,
+    state: Arc<SearchState>,
+    tt: &TT,
+    threads: &usize,
+) {
     if game.result != InProgress {
         println!("bestmove 0000");
         return;
     }
     state.stop.store(false, Ordering::Relaxed);
-    let depth = parts
-        .iter()
-        .position(|&p| p == "depth")
-        .and_then(|i| parts.get(i + 1))
-        .and_then(|d| d.parse::<u8>().ok());
-
-    let movetime = parts
-        .iter()
-        .position(|&p| p == "movetime")
-        .and_then(|i| parts.get(i + 1))
-        .and_then(|d| d.parse::<u32>().ok());
-
-    let wtime = parts
-        .iter()
-        .position(|&p| p == "wtime")
-        .and_then(|i| parts.get(i + 1))
-        .and_then(|d| d.parse::<u32>().ok());
-    let btime = parts
-        .iter()
-        .position(|&p| p == "btime")
-        .and_then(|i| parts.get(i + 1))
-        .and_then(|d| d.parse::<u32>().ok());
-    let winc = parts
-        .iter()
-        .position(|&p| p == "winc")
-        .and_then(|i| parts.get(i + 1))
-        .and_then(|d| d.parse::<u32>().ok());
-    let binc = parts
-        .iter()
-        .position(|&p| p == "binc")
-        .and_then(|i| parts.get(i + 1))
-        .and_then(|d| d.parse::<u32>().ok());
+    let depth = parse_go_param::<u8>(parts, "depth");
+    let movetime = parse_go_param::<u32>(parts, "movetime");
+    let wtime = parse_go_param::<u32>(parts, "wtime");
+    let btime = parse_go_param::<u32>(parts, "btime");
+    let winc = parse_go_param::<u32>(parts, "winc");
+    let binc = parse_go_param::<u32>(parts, "binc");
     let pondering = parts.contains(&"ponder");
     state.ponder.store(pondering, Ordering::Relaxed);
 
@@ -153,45 +241,10 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
                 }
             });
 
-            let mut game_clone = game.clone();
-            let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
-            thread::spawn(move || {
-                let (best_move, pv) =
-                    iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
-                cancel.store(true, Ordering::Relaxed);
-                let uci_move = decode_to_uci(best_move).unwrap();
-                if let Some(&ponder_move) = pv.get(1) {
-                    println!(
-                        "bestmove {} ponder {}",
-                        uci_move,
-                        decode_to_uci(ponder_move).unwrap()
-                    );
-                } else {
-                    println!("bestmove {}", uci_move);
-                }
-            });
+            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, u8::MAX, Some(cancel));
         }
         (Some(d), _, None, None, None, None) => {
-            let mut game_clone = game.clone();
-            let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
-            thread::spawn(move || {
-                let (best_move, pv) = iteratively_deepen(
-                    &mut game_clone,
-                    depth.unwrap(),
-                    Arc::clone(&state),
-                    &mut tt_clone,
-                );
-                let uci_move = decode_to_uci(best_move).unwrap();
-                if let Some(&ponder_move) = pv.get(1) {
-                    println!(
-                        "bestmove {} ponder {}",
-                        uci_move,
-                        decode_to_uci(ponder_move).unwrap()
-                    );
-                } else {
-                    println!("bestmove {}", uci_move);
-                }
-            });
+            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, d, None);
         }
         (_, _, Some(wt), Some(bt), _, _) => {
             let (time, inc, opptime) = if game.board.side_to_move {
@@ -232,23 +285,7 @@ fn handle_go(parts: &[&str], game: &mut ChessGame, state: Arc<SearchState>, tt: 
                 }
             });
 
-            let mut game_clone = game.clone();
-            let mut tt_clone = tt.clone(); // since the tt entries themselves are an Arc type, the clone of the entries is really just a pointer.
-            thread::spawn(move || {
-                let (best_move, pv) =
-                    iteratively_deepen(&mut game_clone, u8::MAX, Arc::clone(&state), &mut tt_clone);
-                cancel.store(true, Ordering::Relaxed);
-                let uci_move = decode_to_uci(best_move).unwrap();
-                if let Some(&ponder_move) = pv.get(1) {
-                    println!(
-                        "bestmove {} ponder {}",
-                        uci_move,
-                        decode_to_uci(ponder_move).unwrap()
-                    );
-                } else {
-                    println!("bestmove {}", uci_move);
-                }
-            });
+            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, u8::MAX, Some(cancel));
         }
         _ => {
             println!("bestmove 0000")

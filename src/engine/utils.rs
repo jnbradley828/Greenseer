@@ -1,13 +1,15 @@
 use std::sync::atomic::Ordering;
 
+use arrayvec::ArrayVec;
 use oxi_chess_lib::board::ChessBoard;
 use oxi_chess_lib::moves::{BLACK_PAWN_ATTACKS, WHITE_PAWN_ATTACKS};
+use oxi_chess_lib::utils::decode_to_uci;
 
 use crate::engine::eval::{FILE_MASK, RANK_MASK};
 use crate::engine::eval_heuristics::{
     KING_OPEN_FILE_MULT, KING_SEMIOPEN_FILE_MULT, MG_PAWN_SHIELD_BONUS, TT_AGE_FACTOR,
 };
-use crate::engine::search::TT;
+use crate::engine::search::{MAX_PV_LEN, TT};
 use crate::engine::search_heuristics::MATE_THRESHOLD;
 
 // tt slot is (full 64-bit zobrist key, packed data word).
@@ -221,6 +223,18 @@ pub fn move_gives_check(board: &ChessBoard, mv: u16) -> bool {
 // four promotion-with-capture variants) - see oxi_chess_lib::utils::encode_move/decode_move.
 pub fn is_capture(mv: u16) -> bool {
     [1, 3, 8, 9, 10, 11].contains(&oxi_chess_lib::utils::decode_move(mv)[2])
+}
+
+// formats a pv line for UCI output, falling back to just the best move if pv is empty.
+pub fn pv_to_uci(pv: &ArrayVec<u16, MAX_PV_LEN>, best_move: u16) -> String {
+    if pv.is_empty() {
+        decode_to_uci(best_move).unwrap()
+    } else {
+        pv.iter()
+            .map(|&mv| decode_to_uci(mv).unwrap())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 }
 
 // mask of a king's square plus up to 8 surrounding squares - used to detect enemy piece
@@ -438,7 +452,7 @@ pub fn update_tt(
         if flag == 0 && existing_entry.2 != 0 {
             tt.entries[zobrist_index as usize]
                 .0
-                .store(zobrist_key, Ordering::Relaxed);
+                .store(zobrist_key ^ entry_value, Ordering::Relaxed);
             tt.entries[zobrist_index as usize]
                 .1
                 .store(entry_value, Ordering::Relaxed);
@@ -446,17 +460,19 @@ pub fn update_tt(
     } else {
         tt.entries[zobrist_index as usize]
             .0
-            .store(zobrist_key, Ordering::Relaxed);
+            .store(zobrist_key ^ entry_value, Ordering::Relaxed);
         tt.entries[zobrist_index as usize]
             .1
             .store(entry_value, Ordering::Relaxed);
     }
 }
 
+// slot 0 stores zobrist_key ^ data - a torn read reconstructs to a bogus key (rejected as a miss).
 pub fn retrieve_tt(tt: &mut TT, zobrist_key: u64) -> (u64, i16, u8, u8, u16, u8) {
     let zobrist_index = zobrist_key % (tt.entries.len() as u64);
-    let stored_key = tt.entries[zobrist_index as usize].0.load(Ordering::Relaxed);
+    let stored_key_xor_data = tt.entries[zobrist_index as usize].0.load(Ordering::Relaxed);
     let tt_value = tt.entries[zobrist_index as usize].1.load(Ordering::Relaxed);
+    let stored_key = stored_key_xor_data ^ tt_value;
     let (score, depth, flag, best_move, age) = decode_tt_entry(tt_value);
     return (stored_key, score, depth, flag, best_move, age);
 }

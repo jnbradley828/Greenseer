@@ -3,7 +3,7 @@ use crate::engine::search::{self, MAX_PV_LEN, RootBest, SearchState, TT, negamax
 use crate::engine::search_heuristics::{MATE_THRESHOLD, MAX_QDEPTH};
 use crate::engine::utils::{
     KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, king_file_weakness_mult, pawn_backward,
-    pawn_isolated, pawn_passed, pawn_shield_score,
+    pawn_isolated, pawn_passed, pawn_shield_score, pv_to_uci,
 };
 use arrayvec::ArrayVec;
 use oxi_chess_lib;
@@ -12,21 +12,23 @@ use oxi_chess_lib::magic_tables::ROOK_ATTACKS;
 use oxi_chess_lib::moves::{
     get_bishop_attacks, get_legal_moves, get_queen_attacks, get_rook_attacks, knight_attacks,
 };
-use oxi_chess_lib::utils::decode_to_uci;
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use std::time::Instant;
 
+// nodes: shared running node total. depth_reported: highest depth already printed, so only
+// one thread reports each depth.
 pub fn iteratively_deepen(
     game: &mut oxi_chess_lib::game::ChessGame,
     max_depth: u8,
     state: Arc<SearchState>,
     tt: &mut TT,
-) -> (u16, ArrayVec<u16, 255>) {
+    nodes: &AtomicU64,
+    depth_reported: &AtomicU8,
+) -> RootBest {
     println!("info string start eval {}", evaluate(game));
     let start_time = Instant::now();
-    let mut nodes = 0;
     let age = (game.moves.len() / 2) as u8; // age for transposition table entries
     // stores first move in the list just in case "stop" is called immediately.
     let mut best = RootBest::new(game.legal_moves[0]);
@@ -35,7 +37,7 @@ pub fn iteratively_deepen(
 
     for d in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
-            return (best.best_move, best.pv);
+            return best;
         } else {
             let legal_moves = game.legal_moves.clone();
             let mut pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
@@ -56,28 +58,36 @@ pub fn iteratively_deepen(
                 &mut pv,
                 true,
             );
-            nodes += dnodes;
+            nodes.fetch_add(dnodes, Ordering::Relaxed);
             // negamax publishes to best incrementally as root moves complete, so this is always
             // the authoritative answer regardless of whether the depth finished or was
             // interrupted mid-loop. best_depth (not the loop variable d) reflects which depth
             // this result actually came from.
-            if !state.stop.load(Ordering::Relaxed) {
-                let elapsed = start_time.elapsed().as_millis().max(1);
-                let nps = ((nodes * 1000) as u128) / elapsed;
-                let (score, reported_depth) = (best.best_score, best.best_depth);
-                // pv can be shorter than reported_depth (early returns don't extend it) - fall
-                // back to just best_move if it's somehow empty.
-                let pv_uci = if best.pv.is_empty() {
-                    decode_to_uci(best.best_move).unwrap()
-                } else {
-                    best.pv
-                        .iter()
-                        .map(|&mv| decode_to_uci(mv).unwrap())
-                        .collect::<Vec<_>>()
-                        .join(" ")
+            // CAS-claim: only the first thread to finish depth d reports it.
+            let mut last_reported = depth_reported.load(Ordering::Relaxed);
+            let won_report = !state.stop.load(Ordering::Relaxed)
+                && loop {
+                    if d <= last_reported {
+                        break false;
+                    }
+                    match depth_reported.compare_exchange_weak(
+                        last_reported,
+                        d,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break true,
+                        Err(actual) => last_reported = actual,
+                    }
                 };
+            if won_report {
+                let elapsed = start_time.elapsed().as_millis().max(1);
+                let total_nodes = nodes.load(Ordering::Relaxed);
+                let nps = ((total_nodes * 1000) as u128) / elapsed;
+                let (score, reported_depth) = (best.best_score, best.best_depth);
+                let pv_uci = pv_to_uci(&best.pv, best.best_move);
                 println!(
-                    "info depth {reported_depth} score cp {score} nodes {nodes} nps {nps} time {elapsed} pv {pv_uci}"
+                    "info depth {reported_depth} score cp {score} nodes {total_nodes} nps {nps} time {elapsed} pv {pv_uci}"
                 );
             }
             // a mate proven within the fully-searched depth (not just found via check-extension
@@ -91,7 +101,7 @@ pub fn iteratively_deepen(
             game.legal_moves = legal_moves; // restore legal_moves
         }
     }
-    return (best.best_move, best.pv);
+    best
 }
 
 // returns objective material count
