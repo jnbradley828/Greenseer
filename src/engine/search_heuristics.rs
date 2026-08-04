@@ -24,6 +24,9 @@ pub const TIME_DIVISOR: u32 = 20;
 pub const INC_FRACTION_NUM: u32 = 3;
 pub const INC_FRACTION_DENOM: u32 = 4;
 
+// absolute ceiling on remaining time a move can use, enforced by the external timer thread.
+pub const MAX_TIME_FRACTION: f32 = 0.5;
+
 // reverse futility pruning prunes nodes where the static eval is so good,
 // it is determined that searching deeper is unneccessary.
 // condition to prune: static_eval - margin >= beta

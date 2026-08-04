@@ -1,7 +1,7 @@
 use crate::engine::eval::iteratively_deepen;
 use crate::engine::search::{RootBest, SearchState, TT};
 use crate::engine::search_heuristics::{
-    INC_FRACTION_DENOM, INC_FRACTION_NUM, MOVE_OVERHEAD, PANIC_THRESHOLD_MS,
+    INC_FRACTION_DENOM, INC_FRACTION_NUM, MAX_TIME_FRACTION, MOVE_OVERHEAD, PANIC_THRESHOLD_MS,
     SINGLE_LEGAL_MOVE_TIME_MS, TIME_DIVISOR,
 };
 use oxi_chess_lib::game::ChessGame;
@@ -147,6 +147,7 @@ fn spawn_lazy_smp(
     threads: usize,
     max_depth: u8,
     cancel: Option<Arc<AtomicBool>>,
+    mt_suggested: Option<u32>,
 ) {
     if threads == 1 {
         // single thread - skip the scope/Vec machinery.
@@ -162,6 +163,7 @@ fn spawn_lazy_smp(
                 &mut tt_clone,
                 &nodes,
                 &depth_reported,
+                mt_suggested,
             );
             if let Some(cancel) = cancel {
                 cancel.store(true, Ordering::Relaxed);
@@ -192,6 +194,7 @@ fn spawn_lazy_smp(
                         &mut tt_owned,
                         nodes_ref,
                         depth_reported_ref,
+                        mt_suggested,
                     ));
                 });
             }
@@ -241,10 +244,10 @@ fn handle_go(
                 }
             });
 
-            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, u8::MAX, Some(cancel));
+            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, u8::MAX, Some(cancel), None);
         }
         (Some(d), _, None, None, None, None) => {
-            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, d, None);
+            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, d, None, None);
         }
         (_, _, Some(wt), Some(bt), _, _) => {
             let (time, inc, opptime) = if game.board.side_to_move {
@@ -253,15 +256,23 @@ fn handle_go(
                 (bt.saturating_sub(MOVE_OVERHEAD), binc.unwrap_or(0), wt)
             };
 
-            let mut mt: u32;
+            // mt_suggested: iteratively_deepen's own internal target, adjustable via
+            // search_time_multiplier. external_mt: the unconditional ceiling the timer thread
+            // below enforces regardless of what iteratively_deepen decides.
+            let mt_suggested: Option<u32>;
+            let external_mt: u32;
 
             if time <= PANIC_THRESHOLD_MS {
-                mt = 1;
+                mt_suggested = None;
+                external_mt = 1;
             } else if game.legal_moves.len() == 1 {
-                mt = SINGLE_LEGAL_MOVE_TIME_MS;
+                mt_suggested = None;
+                external_mt = SINGLE_LEGAL_MOVE_TIME_MS;
             } else {
-                mt = (time / TIME_DIVISOR) + (inc * INC_FRACTION_NUM / INC_FRACTION_DENOM);
+                let mut mt = (time / TIME_DIVISOR) + (inc * INC_FRACTION_NUM / INC_FRACTION_DENOM);
                 mt = ((mt as f32) * (time as f32 / opptime as f32) + 0.5) as u32; // scales time based on time differential.
+                mt_suggested = Some(mt);
+                external_mt = (time as f32 * MAX_TIME_FRACTION) as u32;
             }
 
             let cancel = Arc::new(AtomicBool::new(false));
@@ -277,7 +288,7 @@ fn handle_go(
                 }
                 // don't sleep for mt if stop is already called (ponder miss scenario)
                 if !state_c.stop.load(Ordering::Relaxed) {
-                    thread::sleep(Duration::from_millis(mt as u64));
+                    thread::sleep(Duration::from_millis(external_mt as u64));
                 }
 
                 if !cancel_c.load(Ordering::Relaxed) {
@@ -285,7 +296,15 @@ fn handle_go(
                 }
             });
 
-            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, u8::MAX, Some(cancel));
+            spawn_lazy_smp(
+                game,
+                tt,
+                Arc::clone(&state),
+                *threads,
+                u8::MAX,
+                Some(cancel),
+                mt_suggested,
+            );
         }
         _ => {
             println!("bestmove 0000")

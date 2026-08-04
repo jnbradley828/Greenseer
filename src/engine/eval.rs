@@ -26,6 +26,7 @@ pub fn iteratively_deepen(
     tt: &mut TT,
     nodes: &AtomicU64,
     depth_reported: &AtomicU8,
+    mt_suggested: Option<u32>,
 ) -> RootBest {
     println!("info string start eval {}", evaluate(game));
     let start_time = Instant::now();
@@ -34,6 +35,8 @@ pub fn iteratively_deepen(
     let mut best = RootBest::new(game.legal_moves[0]);
     // persists (and accumulates) across all depth iterations of this search, not reset per depth.
     let mut killers = search::KillerTable::new();
+    // scales mt_suggested up or down as accuracy-pressure heuristics get added below.
+    let mut search_time_multiplier: f32 = 1.0;
 
     for d in 1..=max_depth {
         if state.stop.load(Ordering::Relaxed) {
@@ -97,6 +100,13 @@ pub fn iteratively_deepen(
                 && 10000 - best.best_score.abs() <= d as i16
             {
                 state.stop.store(true, Ordering::Relaxed);
+            } else if let Some(budget) = mt_suggested {
+                // TODO: adjust search_time_multiplier here based on accuracy-pressure
+                // heuristics (tactical density, positional tension, eval variance).
+                if start_time.elapsed().as_millis() as f32 >= budget as f32 * search_time_multiplier
+                {
+                    state.stop.store(true, Ordering::Relaxed);
+                }
             }
             game.legal_moves = legal_moves; // restore legal_moves
         }
