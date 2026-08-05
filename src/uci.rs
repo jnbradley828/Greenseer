@@ -6,7 +6,6 @@ use crate::engine::search_heuristics::{
 };
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::game::GameResult::InProgress;
-use oxi_chess_lib::moves::get_legal_moves;
 use oxi_chess_lib::utils::decode_to_uci;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::time::Duration;
@@ -17,14 +16,22 @@ use std::{
 };
 
 pub fn run() {
-    let mut game = ChessGame::initialize((1, 1), None);
+    let mut game = ChessGame::initialize(None);
     let state = Arc::new(SearchState::new());
     let mut tt = TT::new(128);
     let mut threads: usize = 1;
+    let mut ponder_enabled = true;
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
-        handle_command(&line, &mut game, Arc::clone(&state), &mut tt, &mut threads);
+        handle_command(
+            &line,
+            &mut game,
+            Arc::clone(&state),
+            &mut tt,
+            &mut threads,
+            &mut ponder_enabled,
+        );
     }
 }
 
@@ -34,21 +41,22 @@ pub fn handle_command(
     state: Arc<SearchState>,
     tt: &mut TT,
     threads: &mut usize,
+    ponder_enabled: &mut bool,
 ) {
-    let parts: Vec<&str> = cmd.trim().split_whitespace().collect();
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
     if parts.is_empty() {
         return;
     }
     match parts[0] {
         "uci" => uci_response(),
-        "setoption" => handle_setoption(&parts, tt, threads),
+        "setoption" => handle_setoption(&parts, tt, threads, ponder_enabled),
         "isready" => println!("readyok"),
         "ucinewgame" => {
-            *game = ChessGame::initialize((1, 1), None);
+            *game = ChessGame::initialize(None);
             tt.clear();
         }
         "position" => handle_position(&parts, game),
-        "go" => handle_go(&parts, game, Arc::clone(&state), tt, threads),
+        "go" => handle_go(&parts, game, Arc::clone(&state), tt, threads, ponder_enabled),
         "quit" => std::process::exit(0),
         "stop" => handle_stop(Arc::clone(&state)),
         "ponderhit" => handle_ponderhit(Arc::clone(&state)),
@@ -65,7 +73,7 @@ fn uci_response() {
     println!("uciok");
 }
 
-fn handle_setoption(parts: &[&str], tt: &mut TT, threads: &mut usize) {
+fn handle_setoption(parts: &[&str], tt: &mut TT, threads: &mut usize, ponder_enabled: &mut bool) {
     if parts.get(1) != Some(&"name") || parts.get(3) != Some(&"value") {
         return;
     }
@@ -84,6 +92,9 @@ fn handle_setoption(parts: &[&str], tt: &mut TT, threads: &mut usize) {
                 *threads = n.max(1);
             }
         }
+        Some(&"Ponder") => {
+            *ponder_enabled = *value == "true";
+        }
         _ => {}
     }
 }
@@ -97,13 +108,13 @@ fn handle_position(parts: &[&str], game: &mut ChessGame) {
 
     let moves_idx = match parts[1] {
         "startpos" => {
-            *game = ChessGame::initialize((1, 1), None);
+            *game = ChessGame::initialize(None);
             parts.iter().position(|&p| p == "moves").map(|i| i + 1)
         }
         "fen" => {
             // FEN is parts[2..7] (6 fields), then optionally "moves"
             let fen = parts[2..parts.len().min(8)].join(" ");
-            *game = ChessGame::initialize((1, 1), Some(&fen));
+            *game = ChessGame::initialize(Some(&fen));
             parts.iter().position(|&p| p == "moves").map(|i| i + 1)
         }
         _ => return,
@@ -125,10 +136,12 @@ fn parse_go_param<T: std::str::FromStr>(parts: &[&str], name: &str) -> Option<T>
         .and_then(|d| d.parse::<T>().ok())
 }
 
-// reports the chosen move (and ponder move, if any).
-fn print_bestmove(best: &RootBest) {
+// reports the chosen move, plus a ponder suggestion if the GUI hasn't disabled pondering.
+fn print_bestmove(best: &RootBest, ponder_enabled: bool) {
     let uci_move = decode_to_uci(best.best_move).unwrap();
-    if let Some(&ponder_move) = best.pv.get(1) {
+    if ponder_enabled
+        && let Some(&ponder_move) = best.pv.get(1)
+    {
         println!(
             "bestmove {} ponder {}",
             uci_move,
@@ -148,6 +161,7 @@ fn spawn_lazy_smp(
     max_depth: u8,
     cancel: Option<Arc<AtomicBool>>,
     mt_suggested: Option<u32>,
+    ponder_enabled: bool,
 ) {
     if threads == 1 {
         // single thread - skip the scope/Vec machinery.
@@ -168,12 +182,13 @@ fn spawn_lazy_smp(
             if let Some(cancel) = cancel {
                 cancel.store(true, Ordering::Relaxed);
             }
-            print_bestmove(&best);
+            print_bestmove(&best, ponder_enabled);
         });
         return;
     }
 
-    let worker_inputs: Vec<(ChessGame, TT)> = (0..threads).map(|_| (game.clone(), tt.clone())).collect();
+    let worker_inputs: Vec<(ChessGame, TT)> =
+        (0..threads).map(|_| (game.clone(), tt.clone())).collect();
 
     thread::spawn(move || {
         let mut results: Vec<Option<RootBest>> = (0..threads).map(|_| None).collect();
@@ -205,7 +220,7 @@ fn spawn_lazy_smp(
         }
 
         if let Some(best) = results.into_iter().flatten().max_by_key(|b| b.best_depth) {
-            print_bestmove(&best);
+            print_bestmove(&best, ponder_enabled);
         }
     });
 }
@@ -216,6 +231,7 @@ fn handle_go(
     state: Arc<SearchState>,
     tt: &TT,
     threads: &usize,
+    ponder_enabled: &bool,
 ) {
     if game.result != InProgress {
         println!("bestmove 0000");
@@ -244,10 +260,28 @@ fn handle_go(
                 }
             });
 
-            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, u8::MAX, Some(cancel), None);
+            spawn_lazy_smp(
+                game,
+                tt,
+                Arc::clone(&state),
+                *threads,
+                u8::MAX,
+                Some(cancel),
+                None,
+                *ponder_enabled,
+            );
         }
         (Some(d), _, None, None, None, None) => {
-            spawn_lazy_smp(game, tt, Arc::clone(&state), *threads, d, None, None);
+            spawn_lazy_smp(
+                game,
+                tt,
+                Arc::clone(&state),
+                *threads,
+                d,
+                None,
+                None,
+                *ponder_enabled,
+            );
         }
         (_, _, Some(wt), Some(bt), _, _) => {
             let (time, inc, opptime) = if game.board.side_to_move {
@@ -256,9 +290,8 @@ fn handle_go(
                 (bt.saturating_sub(MOVE_OVERHEAD), binc.unwrap_or(0), wt)
             };
 
-            // mt_suggested: iteratively_deepen's own internal target, adjustable via
-            // search_time_multiplier. external_mt: the unconditional ceiling the timer thread
-            // below enforces regardless of what iteratively_deepen decides.
+            // mt_suggested: internal target passed to iteratively_deepen. external_mt: hard
+            // ceiling enforced by the timer thread below regardless of mt_suggested.
             let mt_suggested: Option<u32>;
             let external_mt: u32;
 
@@ -304,6 +337,7 @@ fn handle_go(
                 u8::MAX,
                 Some(cancel),
                 mt_suggested,
+                *ponder_enabled,
             );
         }
         _ => {

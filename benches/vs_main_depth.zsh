@@ -57,7 +57,7 @@ else
     caffeinate -s -i -m fastchess \
         -engine cmd=./target/release/Greenseer name=dev \
         -engine cmd=/tmp/Greenseer_main/target/release/Greenseer name=main \
-        -each proto=uci depth=${DEPTH} \
+        -each proto=uci depth=${DEPTH} option.Ponder=false \
         -sprt elo0=${ELO0} elo1=${ELO1} alpha=0.05 beta=0.05 \
         -rounds 50 \
         -config outname=benches/tournament_configs/${TIMESTAMP}.json \

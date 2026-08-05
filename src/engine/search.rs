@@ -1,29 +1,21 @@
 use arrayvec::ArrayVec;
 use oxi_chess_lib::{
-    self,
     board::ChessBoard,
-    game::{
-        ChessGame,
-        GameResult::{self},
-    },
+    game::{ChessGame, GameResult},
     moves::get_legal_moves,
     rules,
-    utils::{self, decode_move, encode_from_uci},
+    utils::decode_move,
 };
 
-use crate::engine::{self, eval::relative_evaluate};
-use crate::engine::{
-    eval_heuristics::PIECE_VALUES,
-    utils::{
-        from_tt_score, is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
-    },
+use crate::engine::eval::relative_evaluate;
+use crate::engine::eval_heuristics::PIECE_VALUES;
+use crate::engine::search_heuristics::{
+    MATE_THRESHOLD, NMP_MIN_DEPTH, NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH,
+    RFP_MAX_DEPTH, VICTIM_WEIGHT,
 };
-use crate::engine::{
-    search_heuristics::{
-        FP_MARGIN_BASE, FP_MARGIN_PER_DEPTH, FP_MAX_DEPTH, MATE_THRESHOLD, NMP_MIN_DEPTH,
-        NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH, VICTIM_WEIGHT,
-    },
-    utils::has_pieces,
+use crate::engine::utils::{
+    TT_EXACT_FLAG, TT_LOWERB_FLAG, TT_UPPERB_FLAG, from_tt_score, has_pieces, is_capture,
+    move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
 };
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -32,6 +24,12 @@ pub struct SearchState {
     pub stop: AtomicBool,
     pub ponder: AtomicBool,
 }
+impl Default for SearchState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SearchState {
     pub fn new() -> Self {
         Self {
@@ -41,25 +39,15 @@ impl SearchState {
     }
 }
 
-// architectural bound on line length, not a tunable - matches negamax's own depth/ply type (u8),
-// so the pv buffer can never overflow regardless of what max_depth is called with.
+// bound on line length - matches negamax's depth/ply type (u8), so pv can't overflow.
 pub const MAX_PV_LEN: usize = u8::MAX as usize;
 
-// published incrementally by the root of negamax as root moves complete - always readable as
-// "the best confirmed answer so far", valid even if the search is interrupted mid-depth. lives
-// only on the search thread's own stack (passed down by &mut through the recursion), since
-// nothing outside that thread ever needs to see it.
+// incrementally-published "best confirmed answer so far" at the root, valid even mid-search.
 pub struct RootBest {
     pub best_move: u16,
     pub best_score: i16,
-    // the depth that best_move/best_score actually came from - not necessarily the depth
-    // iteratively_deepen's loop is nominally on, since a depth that hasn't yet re-evaluated the
-    // incumbent move (see negamax's root loop) can leave this reflecting an earlier depth.
-    pub best_depth: u8,
-    // best_move followed by the rest of the expected line. can be shorter than best_depth would
-    // suggest - early returns (tt cutoff, rfp, nmp fail-high, stop) don't have a real subtree to
-    // report, so the line simply terminates there.
-    pub pv: ArrayVec<u16, MAX_PV_LEN>,
+    pub best_depth: u8, // depth this result actually came from, may lag the nominal search depth
+    pub pv: ArrayVec<u16, MAX_PV_LEN>, // may be shorter than best_depth - early returns truncate it
 }
 impl RootBest {
     pub fn new(fallback_move: u16) -> Self {
@@ -72,15 +60,14 @@ impl RootBest {
     }
 }
 
-// each slot is (full zobrist key, packed data) - full key stored to eliminate
-// false-positive verification hits from a truncated key tag.
+// each slot is (full zobrist key, packed data) - full key avoids false hits from a truncated tag.
 #[derive(Clone)]
 pub struct TT {
     pub entries: Arc<Vec<(AtomicU64, AtomicU64)>>,
 }
 impl TT {
     pub fn new(size_mb: usize) -> Self {
-        let no_entries = (size_mb * (2 as usize).pow(20)) / 16;
+        let no_entries = (size_mb * 2_usize.pow(20)) / 16;
         let entry_vec = std::iter::repeat_with(|| (AtomicU64::new(0), AtomicU64::new(0)))
             .take(no_entries)
             .collect();
@@ -98,11 +85,15 @@ impl TT {
     }
 }
 
-// 2 killer (quiet, cutoff-causing) moves per ply. sized to 255 (not 256) since ply is a u8 and
-// ply 0 (the root - it has no siblings, so a killer stored there could never be read by
-// anyone) is excluded from storage. the ply -> index mapping is encapsulated here rather than
-// duplicated at each call site.
+// 2 killer (quiet, cutoff-causing) moves per ply. 255 slots, not 256 - ply 0 (root) has no
+// siblings so is never stored.
 pub struct KillerTable([[Option<u16>; 2]; 255]);
+
+impl Default for KillerTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl KillerTable {
     pub fn new() -> Self {
@@ -118,8 +109,7 @@ impl KillerTable {
         }
     }
 
-    // records a cutoff-causing quiet move, shifting the existing primary killer to secondary.
-    // no-op for ply == 0, and for a move that's already this ply's primary killer.
+    // shifts primary killer to secondary. no-op for ply 0 or an already-primary move.
     pub fn store(&mut self, ply: u8, mv: u16) {
         if ply == 0 {
             return;
@@ -131,16 +121,11 @@ impl KillerTable {
         }
     }
 }
-// negamax formulation: every node's returned score is from the perspective of whoever is to
-// move AT THAT NODE (positive = good for the current mover), not a fixed global side. a
-// recursive call that actually makes a move negates the returned score and swaps alpha/beta
-// into (-beta, -alpha); a call that doesn't move (check-extension/quiescence dispatch) does
-// neither, since the side to move hasn't changed.
-// returns (position eval, best move, nodes visited, completed) **pruned nodes are not counted**.
-// completed is false only when a stop signal cut this subtree short mid-search, in which case
-// the eval/move are a meaningless sentinel (always score 0) - callers must not treat them as a
-// real result, only propagate the incompletion upward.
-// quiescence search means search until no more captures are available and position is not check, even if depth expires.
+// negamax: score is always from the perspective of whoever is to move at that node. a call that
+// makes a real move negates the child score and swaps (alpha, beta) to (-beta, -alpha); a call
+// that doesn't (check-extension/quiescence dispatch) does neither.
+// returns (eval, best move, nodes visited, completed). completed=false means a stop signal cut
+// this subtree short - eval/move are meaningless sentinels, propagate the incompletion upward.
 pub fn negamax(
     game: &mut ChessGame,
     depth: u8,
@@ -160,44 +145,37 @@ pub fn negamax(
 ) -> (i16, u16, u64, bool) {
     let mut nodes: u64 = 1;
     if game.result != GameResult::InProgress {
-        // if game is over in this position
         if !matches!(game.result, GameResult::Draw(_)) {
-            // checkmate is always bad for whoever is to move (they have no moves and are in
-            // check) - discounted by ply to prefer faster mates.
+            // checkmate: bad for the mover, discounted by ply to prefer faster mates.
             return (ply as i16 - 10000, 0, nodes, true);
         } else {
             return (0, 0, nodes, true);
         }
     }
 
-    // skip tt is position is a repetition. (reduces 3fold repetition in won positions)
+    // skip tt on a repetition (reduces 3fold repetition in won positions)
     let mut skip_tt = false;
     if let Some(&count) = game.positions_count.get(&game.board.zobrist_hash)
         && count >= 2
     {
         skip_tt = true;
     }
-    // check tt before calculation logic
     let mut tt_move: Option<u16> = None;
     if let Some(tt_entry) = retrieve_tt_or_none(tt, game.board.zobrist_hash)
         && !skip_tt
     {
-        // if flag is exact: return tt score
-        // if flag is lower bound & tt score >= beta: return tt score (it will trigger a cutoff at parent node)
-        // if flag is upper bound & tt score <= alpha: return tt score (it will trigger a cutoff at parent node)
+        // flag: 0=exact returns immediately, 1=lower-bound returns if tt_score>=beta,
+        // 2=upper-bound returns if tt_score<=alpha (either triggers a cutoff at the parent).
         if tt_entry.2 >= depth {
             let tt_score = from_tt_score(tt_entry.1, ply);
-            // root only: this position's TT entry already covers >= depth, so it's a valid
-            // confirmed answer for this iteration - publish it before returning early, otherwise
-            // a root TT hit (routine once the TT holds entries from prior moves' searches)
-            // bypasses the moves loop entirely and best never hears about it.
+            // root only: publish before returning early, since a root tt hit skips the moves
+            // loop entirely and best would otherwise never hear about it.
             let publish = |best: &mut RootBest| {
                 if ply == 0 {
                     best.best_move = tt_entry.4;
                     best.best_score = tt_score;
                     best.best_depth = depth;
-                    // tt slots one ply deeper can already be stale/overwritten - only this move
-                    // is trustworthy here, not a walked continuation.
+                    // one ply deeper can be stale - only this move is trustworthy, not a line.
                     best.pv.clear();
                     best.pv.push(tt_entry.4);
                 }
@@ -224,32 +202,26 @@ pub fn negamax(
         }
         tt_move = Some(tt_entry.4);
     }
-    // move generation and reordering are deferred to the depth != 0 branch below, right where
-    // the list is actually consumed - nothing above this point (game-over check, tt lookup,
-    // check-extension/quiescence dispatch) ever needs the move list, so nothing above it should
-    // pay to generate one.
+    // move generation/reordering deferred to depth != 0 below, right where it's consumed.
 
     if depth == 0 {
-        // check extension: if the position is check: search depth 1. no move made - same
-        // board/side, so no negation or alpha/beta swap.
+        // check extension: search 1 more ply. no move made, so no negation/swap.
         if rules::is_check(&game.board, game.board.side_to_move) {
-            // same ply, same node conceptually - just refining via check-extension, so the line
-            // being built is still this node's line. forward pv itself, not a child buffer.
-            return negamax(
+            // same node conceptually - forward pv itself, not a child buffer.
+            negamax(
                 game, 1, alpha, beta, state, false, true, qdepth, tt, killers, ply, age, best, pv,
                 allow_null,
-            );
+            )
         } else {
-            // quiescence search: continue search until all captures are complete.
-            let stand_pat_eval = relative_evaluate(game);
+            // quiescence search: continue until all captures are complete.
+            let stand_pat_eval = relative_evaluate(&game.board);
             if stand_pat_eval >= beta {
                 return (stand_pat_eval, 0, nodes, true);
             }
             if qdepth == 0 {
-                return (stand_pat_eval, 0, nodes, true);
+                (stand_pat_eval, 0, nodes, true)
             } else {
-                // no move made here either (same position, just now searching captures only) -
-                // no negation or swap. same node conceptually, so forward pv itself.
+                // no move made - same node conceptually, so forward pv itself.
                 let (q_eval, mv, q_nodes, q_completed) = negamax(
                     game,
                     1,
@@ -270,60 +242,43 @@ pub fn negamax(
                 nodes += q_nodes;
                 // stand_pat is a floor: a quiet position is never worse than not capturing.
                 if q_eval > stand_pat_eval {
-                    return (q_eval, mv, nodes, q_completed);
+                    (q_eval, mv, nodes, q_completed)
                 } else {
-                    return (stand_pat_eval, 0, nodes, q_completed);
+                    (stand_pat_eval, 0, nodes, q_completed)
                 }
             }
         }
     } else {
-        // generate once per node, right where it's actually needed - reorder in place (no
-        // clone of the move list), folding in the tt move (or, at the root, the incumbent move
-        // going into this depth - see below) and this ply's killers if any exist, on top of the
-        // usual capture/check-first heuristic. skipped entirely during quiescence/check-extension,
-        // which are already restricted to a small, targeted move set - not worth the
-        // classification cost reorder_moves always pays regardless of what's passed in.
+        // move list generated here, right where it's consumed - skipped in
+        // quiescence/check-extension, which use a smaller targeted set already.
         let mut legal_moves: ArrayVec<u16, 256>;
-        let mut first_quiet_idx: usize = usize::MAX;
-        // shared between RFP and FP below so a node that qualifies for both only pays for
-        // relative_evaluate once.
-        let mut static_eval: i16 = 0;
-        let mut se_calculated = false;
 
         if !quiescence && !check_extension {
-            // reverse futility pruning: if the position is so good that eval >= beta + margin,
-            // don't even bother searching deeper. improves speed, accuracy irons itself out
-            // over increased depth.
-            // only use for low depths, non-mate beta values, and non-check positions.
-            // not stored in transposition table, as it is only a static eval of a position.
-            if depth <= RFP_MAX_DEPTH
-                && beta > -MATE_THRESHOLD
-                && !rules::is_check(&game.board, game.board.side_to_move)
-            {
-                static_eval = relative_evaluate(game);
-                se_calculated = true;
+            // RFP_MAX_DEPTH >= NMP_MIN_DEPTH so every depth is eligible for at least one of RFP/NMP
+            // below - computing this once avoids a redundant is_check on nodes eligible for both.
+            let in_check = rules::is_check(&game.board, game.board.side_to_move);
+
+            // reverse futility pruning: eval >= beta + margin means deeper search is unneeded.
+            // low depths, non-mate beta, non-check only. not tt-stored (only a static eval).
+            if depth <= RFP_MAX_DEPTH && beta > -MATE_THRESHOLD && !in_check {
+                let static_eval = relative_evaluate(&game.board);
                 let margin = RFP_MARGIN_BASE + (depth as i16 * RFP_MARGIN_PER_DEPTH);
                 if static_eval - margin >= beta {
                     return (static_eval, 0, nodes, true);
                 }
             }
 
-            // null move pruning: if giving up your move (making a "null" move) still leads
-            // to a position so good it fails high (score >= beta) after a shallow serach,
-            // your actual best move would be too - so you can prune the subtree without
-            // searching real moves.
-            // only use for high depths, non-mate beta values, non-check-positions, and positions
-            // where player to move has major pieces on the board (no null move in zugzwang!)
-            // Do not allow consecutive null moves (set allow_null = false)
+            // null move pruning: skipping your move still scores >= beta -> prune the subtree.
+            // high depths, non-mate beta, non-check, has major pieces (no null move in zugzwang).
             if allow_null
                 && depth >= NMP_MIN_DEPTH
                 && beta < MATE_THRESHOLD
                 && has_pieces(&game.board)
-                && !rules::is_check(&game.board, game.board.side_to_move)
+                && !in_check
             {
                 game.make_null_move().unwrap();
                 if game.result == GameResult::InProgress {
-                    // null move isn't a real move in our line - scratch buffer, discarded.
+                    // not a real move in our line - scratch buffer, discarded.
                     let mut null_pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
                     let (score, _, null_nodes, completed) = negamax(
                         game,
@@ -354,26 +309,23 @@ pub fn negamax(
                 }
             }
 
-            legal_moves = get_legal_moves(&mut game.board);
+            legal_moves = get_legal_moves(&game.board);
 
-            // at the root, force best.best_move to the front regardless of what (if anything)
-            // the tt lookup returned - the incremental publish logic below depends on this move
-            // being re-evaluated as early as possible each depth, and the tt isn't a reliable way
-            // to guarantee that (skip_tt on repetitions, or the root's slot simply getting
-            // overwritten by an unrelated node in a huge, shared table).
+            // root: force the incumbent move to the front so it's re-evaluated first each depth -
+            // the tt isn't reliable enough for this (skip_tt, slot overwrites).
             let move_to_front = if ply == 0 {
                 Some(best.best_move)
             } else {
                 tt_move
             };
-            first_quiet_idx = reorder_moves(
+            reorder_moves(
                 &game.board,
                 &mut legal_moves,
                 move_to_front,
                 killers.get(ply),
             );
         } else {
-            legal_moves = get_legal_moves(&mut game.board);
+            legal_moves = get_legal_moves(&game.board);
         }
 
         let mut alpha = alpha;
@@ -381,49 +333,18 @@ pub fn negamax(
         let mut best_eval = -i16::MAX;
         let mut cutoff = false;
         let mut best_move = legal_moves[0];
-        for (move_idx, movei) in legal_moves.into_iter().enumerate() {
+        for movei in legal_moves {
             if state.stop.load(Ordering::Relaxed) {
                 return (0, best_move, nodes, false);
             }
             if quiescence && !is_capture(movei) {
-                // if quiescence only search: skip non captures.
                 continue;
             }
 
-            // TO BE RETRIED AFTER IMPLEMENTING QUIET MOVE HISTORY TABLES
-            // futility pruning: at shallow depth, a quiet move whose static eval - even given a
-            // generous margin - can't climb up to alpha is assumed hopeless and skipped without
-            // being searched. move_idx != 0 guarantees at least one move is fully searched at
-            // this node regardless of bucket; move_idx >= first_quiet_idx additionally excludes
-            // the tt/capture/check/killer buckets reorder_moves placed ahead of it.
-            // disabled: SPRT'd across several margin/depth configs (see search_heuristics.rs)
-            // with no config clearing a positive result. root cause suspected to be
-            // reorder_moves's quiet bucket having no internal ordering, so the eligibility test
-            // doesn't correlate with "this move is probably bad" the way it needs to.
-            // if !quiescence
-            //     && !check_extension
-            //     && depth <= FP_MAX_DEPTH
-            //     && move_idx != 0
-            //     && move_idx >= first_quiet_idx
-            //     && alpha < MATE_THRESHOLD
-            //     && !rules::is_check(&game.board, game.board.side_to_move)
-            // {
-            //     if !se_calculated {
-            //         static_eval = relative_evaluate(game);
-            //         se_calculated = true;
-            //     }
-            //     let margin = FP_MARGIN_BASE + (depth as i16 * FP_MARGIN_PER_DEPTH);
-            //     if static_eval + margin <= alpha {
-            //         continue;
-            //     }
-            // }
-
-            // fresh scratch buffer per move - only spliced into our own pv below if movei turns
-            // out to be the new best.
+            // scratch buffer - only spliced into our pv below if movei becomes the new best.
             let mut child_pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
             _ = game.make_move(movei, false, true);
-            // a move was actually made here - negate the child's score (it's from the
-            // opponent's perspective) and swap alpha/beta accordingly.
+            // real move made - negate child score, swap alpha/beta.
             let (child_eval, _, child_nodes, child_completed) = negamax(
                 game,
                 depth - 1,
@@ -445,9 +366,7 @@ pub fn negamax(
             nodes += child_nodes;
             _ = game.unmake_move(false);
             if !child_completed {
-                // movei's subtree was abandoned mid-search - eval is a meaningless sentinel, not
-                // a real result. propagate the incompletion upward without letting it pollute
-                // best_eval/best_move or get published below as if it were genuine.
+                // subtree abandoned mid-search - eval is a meaningless sentinel, propagate up.
                 return (0, best_move, nodes, false);
             }
             if eval > best_eval {
@@ -457,34 +376,21 @@ pub fn negamax(
                 pv.push(movei);
                 pv.extend(child_pv.iter().copied());
             }
-            // root only: publish incrementally so best.best_move/best_score always reflect the
-            // best confirmed answer, even if interrupted mid-depth. checked every move, not
-            // nested inside "if eval > best_eval" above - movei can be worth publishing even on
-            // an iteration where it didn't just become the local incumbent. two safe cases:
-            // (1) movei is the previously-published move - it's had its fair shot at this depth,
-            // so whatever's locally best now wins by default, even if lower than before.
-            // (2) movei isn't that move, but the local best already outright beats the stored
-            // score - no fairness concern needed there either.
-            if ply == 0 {
-                if movei == best.best_move {
-                    best.best_move = best_move;
-                    best.best_score = best_eval;
-                    best.best_depth = depth;
-                    best.pv = pv.clone();
-                } else if best_eval > best.best_score {
-                    best.best_move = best_move;
-                    best.best_score = best_eval;
-                    best.best_depth = depth;
-                    best.pv = pv.clone();
-                }
+            // root only: publish every move (not just new incumbents) - either movei is the
+            // previously-published move getting its re-evaluation, or the local best already
+            // beats the stored score outright.
+            if ply == 0 && (movei == best.best_move || best_eval > best.best_score) {
+                best.best_move = best_move;
+                best.best_score = best_eval;
+                best.best_depth = depth;
+                best.pv = pv.clone();
             }
             if best_eval > alpha {
                 alpha = best_eval;
             }
             if alpha >= beta {
                 cutoff = true;
-                // board is back to the pre-move position here (unmake already ran above), which
-                // is exactly what move_gives_check needs.
+                // board is back to pre-move (unmake ran above) - what move_gives_check needs.
                 if !is_capture(movei) && !move_gives_check(&game.board, movei) {
                     killers.store(ply, movei);
                 }
@@ -495,11 +401,11 @@ pub fn negamax(
         // tt update logic — 3-way classification
         if !(quiescence || check_extension) {
             let flag = if cutoff {
-                engine::utils::TT_LOWERB_FLAG // fail-high: beta cutoff
+                TT_LOWERB_FLAG // fail-high: beta cutoff
             } else if best_eval <= alpha_orig {
-                engine::utils::TT_UPPERB_FLAG // fail-low: never beat alpha
+                TT_UPPERB_FLAG // fail-low: never beat alpha
             } else {
-                engine::utils::TT_EXACT_FLAG // landed strictly inside window
+                TT_EXACT_FLAG // landed strictly inside window
             };
             update_tt(
                 tt,
@@ -512,22 +418,19 @@ pub fn negamax(
             );
         }
 
-        return (best_eval, best_move, nodes, true);
+        (best_eval, best_move, nodes, true)
     }
 }
 
-// orders legal_moves in place: tt best move, then captures, then checks, then killer moves,
-// then everything else untouched. best_move/killer_moves entries not actually legal here (a
-// killer is ply-indexed, not position-indexed, so it can carry over from a different position
-// that shared this ply) are silently skipped.
-// returns the index at which the trailing "rest" block (quiet, non-checking, non-killer moves)
-// begins - callers use this as the futility-pruning eligibility boundary.
+// orders legal_moves in place: tt best move, then captures, then killer moves, then the rest.
+// a best_move/killer not actually legal here (killers are ply-indexed, so can carry over from a
+// different position sharing this ply) is silently skipped.
 pub fn reorder_moves(
     board: &ChessBoard,
     legal_moves: &mut ArrayVec<u16, 256>,
     best_move: Option<u16>,
     killer_moves: [Option<u16>; 2],
-) -> usize {
+) {
     let mut ordered: ArrayVec<u16, 256> = ArrayVec::new();
     let mut captures: ArrayVec<(u16, i16), 256> = ArrayVec::new();
     let mut rest: ArrayVec<u16, 256> = ArrayVec::new();
@@ -546,11 +449,10 @@ pub fn reorder_moves(
         } else if !killer_moves.contains(&Some(mv)) {
             rest.push(mv);
         }
-        // else: quiet, non-checking, and a stored killer - placed in the killer pass below.
+        // else: a stored killer - placed in the killer pass below.
     }
 
-    // MVV-LVA ordering for captures: order captures in descending order of the following formula:
-    // capture_score = k * value(victim) - value(aggressor)
+    // MVV-LVA: capture_score = k * value(victim) - value(aggressor), sorted descending.
     for i in 0..captures.len() {
         let [from_sqi, to_sqi, _] = decode_move(captures[i].0);
 
@@ -579,11 +481,9 @@ pub fn reorder_moves(
             ordered.push(mv);
         }
     }
-    let first_quiet_idx = ordered.len();
     ordered.extend(rest);
 
     *legal_moves = ordered;
-    first_quiet_idx
 }
 
 #[cfg(test)]
