@@ -14,7 +14,7 @@ The engine runs live on Lichess as `GreenseerEngine`. Every push to `main` trigg
 
 ## Hard rules for Claude in this repo
 
-- **Never commit, and never run or launch an SPRT test.** SPRT runs (`benches/*.zsh`) are compute-heavy, run for hours, and commandeer multiple CPU cores — a human must kick these off and review results manually, then commit manually. Claude may write/edit the code, explain what a benchmark script does, or help interpret results a human already produced, but must not execute `benches/*.zsh` or `git commit`.
+- **Never commit, and never run or launch an SPRT test.** SPRT runs (`python/benches/fastchess_sprt.py`) are compute-heavy, run for hours, and commandeer multiple CPU cores — a human must kick these off and review results manually, then commit manually. Claude may write/edit the code, explain what the benchmark tool does, or help interpret results a human already produced, but must not execute `python/benches/fastchess_sprt.py` or `git commit`.
 - **Always build/run with `--release` for anything performance-sensitive** (diagnostics, node-count comparisons, manual UCI testing, profiling). Debug builds are not representative — search speed (NPS) and depth reached are core things this engine is tuned around, and a debug build's numbers are meaningless for that purpose. Plain `cargo build`/`cargo check` is fine for compile-error iteration only.
 
 ## Common commands
@@ -61,19 +61,16 @@ go depth 6
 - Additional terms: king safety (attack-unit scoring against the king zone, pawn shield, open/semi-open file danger), pawn structure (passed/isolated/backward/doubled), mobility, bishop pair, rook on open/semi-open file, tempo.
 - `relative_evaluate` returns the score from the side-to-move's perspective (what `negamax` needs); `evaluate` is the underlying absolute (white-positive) score.
 
-### Benchmarking / SPRT (`benches/`)
+### Benchmarking / SPRT (`python/benches/fastchess_sprt.py`)
 Strength is measured with [fastchess](https://github.com/Disservin/fastchess), running the current `dev` build against a fresh clone+build of `main` under SPRT (elo0=0, elo1=10, alpha=0.05, beta=0.05) until statistical significance is reached, not a fixed game count.
 
-- `full_test_suite.zsh` / `full_test_suite_quick.zsh` / `full_test_suite_alltime.zsh` — run the full battery (middlegame + endgame tournaments); `full_test_suite.zsh e`/`m` controls which runs first
-- `vs_main_middlegames.zsh` / `vs_main_endgames.zsh` — full time control (`tc=10+0.1`), opening books from `benches/test_suites/` (e.g. `UHO_Lichess_4852_v1.epd`, `endgames.epd`)
-- `*_quick.zsh` variants — fast time control (`tc=1+0.01`, hyperbullet) for rapid iteration, same SPRT bounds. **These are quick sanity checks only** — the user typically cuts them off around 100-200 games and does not run them to full SPRT completion. A pass/fail read here is noise-level, not a merge decision.
-- The `tc=10+0.1` runs (`vs_main_middlegames.zsh` / `vs_main_endgames.zsh`) are the ones that must go to full SPRT completion — **only these determine whether a change is validated for `main`**.
-- `vs_main_depth4.zsh` — fixed depth=4 (not time-based) comparison
-- `vs_main_eigenmann_eg_puzzles*.zsh` — endgame tactical puzzle suite (`EigenmannEndgames.epd`)
-- All scripts accept `--resume TIMESTAMP` to continue a previous SPRT run using its saved `benches/tournament_configs/<timestamp>.json` — still rebuilds both binaries, so only valid if no code changed since that run started
-- Every run's PGN output is piped through `python/pgn_analysis.py <timestamp>` (invoke with a trailing `q` for quick-variant runs), which parses `nodes`/`nps`/`depth` annotations out of the PGN and writes a dev-vs-main comparison table (avg NPS, avg depth, absolute and percent diff) next to the tournament result
-- Results land in `benches/results/` (full runs) or `benches/diagnostics/` (depth4/quick runs), with PGNs and tournament configs kept alongside
+- `python/benches/fastchess_sprt.py` is the single interactive entry point — it replaced the earlier family of `.zsh` scripts (there are no `.zsh` benchmark scripts left in this repo). It builds both binaries, then prompts for each tournament's SPRT bounds, opening suite (from `python/benches/test_suites/` — e.g. `UHO_Lichess_4852_v1.epd`, `endgames.epd`, `EigenmannEndgames.epd`, `8moves_v3.pgn`), concurrency, time control (or a fixed max depth instead), and max rounds. Multiple tournaments can be queued to run back-to-back in one invocation.
+- **Quick, low-time-control runs are sanity checks only, not a merge decision** — same principle as before, it's just a prompted time control now rather than a separate `_quick` script. Only a run taken to full SPRT completion at a meaningful time control determines whether a change is validated for `main`.
+- While a tournament runs, a live terminal dashboard (Rich `Live`) shows SPRT progress (Elo estimate, LOS, draw/pairs ratio, games/points, Ptnml, LLR vs bounds) alongside engine performance (avg NPS/depth/nodes/time for `dev` vs `main`) — the latter parsed live from the match PGN as fastchess writes it, no separate post-hoc analysis step.
+- While running: `'s'` + Enter stops and skips to the next queued tournament, `'p'` + Enter pauses (sends SIGINT, then lets you skip or queue a resume from the saved config), `'r'` + Enter resumes a paused tournament.
+- A previous run can be resumed from its saved `python/benches/tournament_configs/<timestamp>.json`.
+- Outputs land under `python/benches/`: `results/<timestamp>.txt` (final dashboard snapshot), plus `tournament_logs/`, `tournament_pgns/`, `tournament_stderrs/`, `tournament_stdouts/`, and `tournament_configs/`.
 
-`python/` has its own venv (`python/.venv`) with `requirements.txt` (rich, markdown-it-py, Pygments) for `pgn_analysis.py`.
+`python/` has its own venv (`python/.venv`) with `requirements.txt` (click, questionary, rich) for `fastchess_sprt.py`.
 
-**Again: these SPRT scripts are for a human to run, not Claude** — they hold CPU cores for hours and their result determines whether code merges to `main`.
+**Again: this SPRT tool is for a human to run, not Claude** — it holds CPU cores for hours and its result determines whether code merges to `main`.

@@ -9,9 +9,10 @@ from datetime import datetime
 import signal
 import select
 import sys
+import time
 from rich.live import Live
 from rich.table import Table
-from rich.console import Group
+from rich.console import Console, Group
 import re
 
 class InvalidResumeConfig(Exception):
@@ -133,23 +134,32 @@ def run_tournament(config):
     )
 
     progress = TournamentProgress()
+    pgn_stats = PgnStats()
     status = Status(STATUS_RUNNING)
-    live = Live(make_dashboard(progress, status), refresh_per_second = 0.5)
+    live = Live(make_dashboard(progress, pgn_stats, status), refresh_per_second = 2)
     live.start()
 
     timestamp = get_timestamp(config)
-    threading.Thread(target=consume_stdout, args=(proc.stdout, STDOUTS_DIR / (timestamp + ".txt"), live, progress, status)).start()
+    pgn_path = PGNS_DIR / (timestamp + ".pgn")
+    threading.Thread(target=consume_stdout, args=(proc.stdout, STDOUTS_DIR / (timestamp + ".txt"), live, progress, pgn_stats, status)).start()
     threading.Thread(target=write_output, args=(proc.stderr, STDERRS_DIR / (timestamp + ".txt"))).start()
-    return proc, live, progress, status
+    threading.Thread(target=consume_pgn, args=(pgn_path, live, progress, pgn_stats, status, proc)).start()
+    return proc, live, progress, pgn_stats, status
 
 def write_output(pipe, output_path):
     with open(output_path, "a") as f:
         f.writelines(pipe)
 
+def write_results(progress, pgn_stats, output_path):
+    with open(output_path, "w") as f:
+        console = Console(file=f)
+        console.print(make_table(progress))
+        console.print(make_pgn_table(pgn_stats))
+
 def run_tournaments(configs: list):
     build_engines()
     for i, config in enumerate(configs):
-        proc, live, progress, status = run_tournament(config)
+        proc, live, progress, pgn_stats, status = run_tournament(config)
 
         paused = False
         while proc.poll() is None or paused:
@@ -163,7 +173,7 @@ def run_tournaments(configs: list):
                     proc.wait()
                     paused = True
                     status.text = STATUS_PAUSED
-                    live.update(make_dashboard(progress, status))
+                    live.update(make_dashboard(progress, pgn_stats, status))
                 elif paused and key == "s":
                     paused = False
                 elif paused and key == "r":
@@ -172,6 +182,7 @@ def run_tournaments(configs: list):
                     paused = False
 
         live.stop()
+        write_results(progress, pgn_stats, RESULTS_DIR / (get_timestamp(config) + ".txt"))
 
 @dataclass
 class TournamentProgress:
@@ -207,6 +218,54 @@ STATUS_PAUSED = "Tournament is currently paused. Press 's' to skip to next tourn
 class Status:
     text: str
 
+@dataclass
+class PgnStats:
+    total_dev_nodes: int = 0
+    total_main_nodes: int = 0
+    total_dev_time: float = 0.0
+    total_main_time: float = 0.0
+    total_dev_depths: int = 0
+    total_main_depths: int = 0
+    total_dev_moves: int = 0
+    total_main_moves: int = 0
+
+WHITE_MOVE_RE = re.compile(r'^\d+\.$') # "<any number of digits>."
+BLACK_MOVE_START_RE = re.compile(r'^\d+\.{3}') # "<any number of digits>..."
+BLACK_MOVE_RE = re.compile(r'^[a-h][1-8][a-h][1-8]$') # UCI move format "<from_file><from_rank><to_file><to_rank>"
+
+def accumulate_pgn_move(stats: PgnStats, belongs_to_dev: bool, depth_field: str, time_field: str, nodes_field: str):
+    depth = int(depth_field.rsplit('/', 1)[1])
+    time_delta = float(time_field.replace('s', ''))
+    nodes = int(nodes_field.rsplit('=', 1)[1])
+
+    if belongs_to_dev:
+        stats.total_dev_moves += 1
+        stats.total_dev_nodes += nodes
+        stats.total_dev_time += time_delta
+        stats.total_dev_depths += depth
+    else:
+        stats.total_main_moves += 1
+        stats.total_main_nodes += nodes
+        stats.total_main_time += time_delta
+        stats.total_main_depths += depth
+
+def update_pgn_stats(line: str, dev_is_white: bool, stats: PgnStats) -> bool:
+    l = line.replace("[", "").replace("]", "").replace(",", "").replace('"', "")
+    l_split = l.split(" ")
+
+    if l_split[0] == "":
+        return dev_is_white
+    elif l_split[0] == "White":
+        dev_is_white = (l_split[1] == "dev")
+    elif WHITE_MOVE_RE.fullmatch(l_split[0]):
+        accumulate_pgn_move(stats, dev_is_white, l_split[2], l_split[3], l_split[6])
+    elif BLACK_MOVE_START_RE.fullmatch(l_split[0]):
+        accumulate_pgn_move(stats, not dev_is_white, l_split[2], l_split[3], l_split[6])
+    elif BLACK_MOVE_RE.fullmatch(l_split[0]):
+        accumulate_pgn_move(stats, not dev_is_white, l_split[1], l_split[2], l_split[5])
+
+    return dev_is_white
+
 def make_table(progress: TournamentProgress):
     table = Table(title = "Tournament Progress")
     table.add_column("Field", style="bold")
@@ -218,10 +277,45 @@ def make_table(progress: TournamentProgress):
 
     return table
 
-def make_dashboard(progress: TournamentProgress, status: Status):
-    return Group(make_table(progress), status.text)
+def make_pgn_table(stats: PgnStats):
+    table = Table(title = "Engine Metrics")
+    table.add_column("Engine Version")
+    table.add_column("Avg NPS", justify = "right")
+    table.add_column("Avg Depth", justify = "right")
+    table.add_column("Total Nodes", justify = "right")
+    table.add_column("Total Time (s)", justify = "right")
 
-def consume_stdout(pipe, output_path, live, progress, status):
+    if stats.total_dev_moves == 0 or stats.total_main_moves == 0:
+        return table
+
+    dev_avg_nps = stats.total_dev_nodes / stats.total_dev_time
+    main_avg_nps = stats.total_main_nodes / stats.total_main_time
+    dev_avg_depth = stats.total_dev_depths / stats.total_dev_moves
+    main_avg_depth = stats.total_main_depths / stats.total_main_moves
+
+    table.add_row("dev", f"{dev_avg_nps:,.0f}", f"{dev_avg_depth:,.2f}", f"{stats.total_dev_nodes:,.0f}", f"{stats.total_dev_time:,.2f}")
+    table.add_row("main", f"{main_avg_nps:,.0f}", f"{main_avg_depth:,.2f}", f"{stats.total_main_nodes:,.0f}", f"{stats.total_main_time:,.2f}")
+    table.add_row(
+        "abs_diff",
+        f"{dev_avg_nps - main_avg_nps:+,.0f}",
+        f"{dev_avg_depth - main_avg_depth:+,.2f}",
+        f"{stats.total_dev_nodes - stats.total_main_nodes:+,.0f}",
+        f"{stats.total_dev_time - stats.total_main_time:+,.2f}",
+    )
+    table.add_row(
+        "pct_diff",
+        f"{(dev_avg_nps - main_avg_nps) / main_avg_nps * 100:+,.2f}%",
+        f"{(dev_avg_depth - main_avg_depth) / main_avg_depth * 100:+,.2f}%",
+        f"{(stats.total_dev_nodes - stats.total_main_nodes) / stats.total_main_nodes * 100:+,.2f}%",
+        f"{(stats.total_dev_time - stats.total_main_time) / stats.total_main_time * 100:+,.2f}%",
+    )
+
+    return table
+
+def make_dashboard(progress: TournamentProgress, pgn_stats: PgnStats, status: Status):
+    return Group(make_table(progress), make_pgn_table(pgn_stats), status.text)
+
+def consume_stdout(pipe, output_path, live, progress, pgn_stats, status):
     reading_output = False
 
     with open(output_path, "a") as f:
@@ -267,10 +361,26 @@ def consume_stdout(pipe, output_path, live, progress, status):
                         progress.h1_elo = line_s[6].rstrip(']\n')
 
                         reading_output = False
-                        live.update(make_dashboard(progress, status))
+                        live.update(make_dashboard(progress, pgn_stats, status))
 
+def consume_pgn(pgn_path, live, progress, pgn_stats, status, proc):
+    while not pgn_path.exists() and proc.poll() is None:
+        time.sleep(0.5)
 
+    if not pgn_path.exists():
+        return
 
+    dev_is_white = True
+    with open(pgn_path, 'r') as f:
+        while True:
+            line = f.readline()
+            if line:
+                dev_is_white = update_pgn_stats(line, dev_is_white, pgn_stats)
+                live.update(make_dashboard(progress, pgn_stats, status))
+            elif proc.poll() is not None:
+                break
+            else:
+                time.sleep(1)
 
 def main():
     # clear old results if requested
