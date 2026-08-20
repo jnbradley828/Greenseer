@@ -203,8 +203,8 @@ class TournamentProgress:
     ptnmls: list = None
     llr: str = None
     llr_pct: str = None
-    llr_min_h0: str = None
-    llr_max_h1: str = None
+    llr_h0: str = None
+    llr_h1: str = None
     h0_elo: str = None
     h1_elo: str = None
 
@@ -231,7 +231,6 @@ class PgnStats:
 
 WHITE_MOVE_RE = re.compile(r'^\d+\.$') # "<any number of digits>."
 BLACK_MOVE_START_RE = re.compile(r'^\d+\.{3}') # "<any number of digits>..."
-BLACK_MOVE_RE = re.compile(r'^[a-h][1-8][a-h][1-8]$') # UCI move format "<from_file><from_rank><to_file><to_rank>"
 
 def accumulate_pgn_move(stats: PgnStats, belongs_to_dev: bool, depth_field: str, time_field: str, nodes_field: str):
     depth = int(depth_field.rsplit('/', 1)[1])
@@ -250,18 +249,25 @@ def accumulate_pgn_move(stats: PgnStats, belongs_to_dev: bool, depth_field: str,
         stats.total_main_depths += depth
 
 def update_pgn_stats(line: str, dev_is_white: bool, stats: PgnStats) -> bool:
-    l = line.replace("[", "").replace("]", "").replace(",", "").replace('"', "")
+    stripped = line.strip()
+    # any header line other than [White ...] is irrelevant here - and everything but
+    # a movetext line starts with "[", so this also catches Event/Site/Result/FEN/etc.
+    if stripped.startswith("[") and not stripped.startswith('[White '):
+        return dev_is_white
+    if stripped in ("", "1-0", "0-1", "1/2-1/2", "*"):
+        return dev_is_white
+
+    l = stripped.replace("[", "").replace("]", "").replace(",", "").replace('"', "")
     l_split = l.split(" ")
 
-    if l_split[0] == "":
-        return dev_is_white
-    elif l_split[0] == "White":
+    if l_split[0] == "White":
         dev_is_white = (l_split[1] == "dev")
     elif WHITE_MOVE_RE.fullmatch(l_split[0]):
         accumulate_pgn_move(stats, dev_is_white, l_split[2], l_split[3], l_split[6])
     elif BLACK_MOVE_START_RE.fullmatch(l_split[0]):
         accumulate_pgn_move(stats, not dev_is_white, l_split[2], l_split[3], l_split[6])
-    elif BLACK_MOVE_RE.fullmatch(l_split[0]):
+    else:
+        # bare black move (no restated move number) - the only thing left it could be.
         accumulate_pgn_move(stats, not dev_is_white, l_split[1], l_split[2], l_split[5])
 
     return dev_is_white
@@ -355,8 +361,8 @@ def consume_stdout(pipe, output_path, live, progress, pgn_stats, status):
                         line_s = line.split(" ")
                         progress.llr = line_s[1]
                         progress.llr_pct = line_s[2].strip('(').strip(')')
-                        progress.llr_min_h0 = line_s[3].strip('(').strip(',')
-                        progress.llr_max_h1 = line_s[4].strip(')')
+                        progress.llr_h0 = line_s[3].strip('(').strip(',')
+                        progress.llr_h1 = line_s[4].strip(')')
                         progress.h0_elo = line_s[5].strip('[').strip(',')
                         progress.h1_elo = line_s[6].rstrip(']\n')
 
