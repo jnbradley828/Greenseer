@@ -1,9 +1,10 @@
 /target
 .DS_Store
-lichess_bot_api.txt
-lichess_update_reference.md
-/benches/diagnostics
-/benches/tournament_configs
-/benches/results/pgn
-/benches/test_suites
+/lichess_reference_files
 /python/.venv
+/python/benches/test_suites
+/python/benches/tournament_stdouts
+/python/benches/tournament_stderrs
+/python/benches/tournament_pgns
+/python/benches/tournament_configs
+/python/benches/tournament_logs
