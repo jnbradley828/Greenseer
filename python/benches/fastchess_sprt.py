@@ -343,9 +343,9 @@ def consume_stdout(pipe, output_path, live, progress, pgn_stats, status):
                         progress.elo_estimation_error = line_s[3].strip(',')
                     case _ if line.startswith("LOS"):
                         line_s = line.split(" ")
-                        progress.los = line_s[1]
+                        progress.los = line_s[1] + '%'
                         progress.draw_ratio = line_s[4] + '%'
-                        progress.pairs_ratio = line_s[7].strip('\n') + '%'
+                        progress.pairs_ratio = line_s[7].strip('\n')
                     case _ if line.startswith("Games"):
                         line_s = line.split(" ")
                         progress.games = line_s[1]

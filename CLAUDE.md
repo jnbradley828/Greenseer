@@ -53,7 +53,7 @@ go depth 6
 - **`RootBest`** is the incrementally-published "best confirmed answer so far" at the root (ply 0) — updated as each root move completes at each depth, so a `stop` mid-depth still returns a valid move rather than nothing.
 - **`completed: bool`** on `negamax`'s return tuple means the subtree wasn't cut short by a stop signal. When `false`, the returned eval/move are meaningless sentinels — callers must propagate the incompletion, never treat it as a real result.
 - **Quiescence search** extends leaf nodes through capture sequences (bounded by `MAX_QDEPTH`) to avoid the horizon effect; check-extension searches one ply deeper on check instead of dropping to quiescence.
-- **Pruning/reduction implemented**: reverse futility pruning (RFP), null move pruning (NMP), transposition table cutoffs, killer-move heuristic. Constants for all of these live in `search_heuristics.rs`.
+- **Pruning/reduction implemented**: reverse futility pruning (RFP), null move pruning (NMP), transposition table cutoffs, killer-move heuristic, principal variation search (PVS — null-window probe on non-first moves, full-window re-search only on fail-high). Constants for the pruning margins/depths live in `search_heuristics.rs`.
 - **TT entries** are `(full zobrist key, packed data)` pairs stored as atomics — the full key (not a truncated tag) is kept to avoid false-positive hits when probing.
 
 ### Evaluation design (in `eval.rs` / `eval_heuristics.rs`)

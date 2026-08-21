@@ -27,6 +27,9 @@ Rather than searching directly to a fixed depth, Greenseer uses **iterative deep
 ### Move Ordering
 Legal moves at each node are ordered to maximize alpha-beta cutoffs: the transposition table's stored best move first, then captures, then checks, then **killer moves** (quiet moves that caused a beta cutoff at the same ply in a sibling node), then everything else.
 
+### Principal Variation Search (PVS)
+Move ordering means the first move searched at each node is usually the best one. Greenseer exploits this with **PVS**: after searching the first move with a full alpha-beta window, every subsequent move is first probed with a cheap **null window** (`[alpha, alpha+1]`) just to test whether it can beat alpha at all. Most of the time it can't, and the probe alone is enough to prove the move is worse — no full-width search needed. Only if a probe unexpectedly fails high is that move re-searched with the full window to get its real score.
+
 ### Search Pruning
 Beyond alpha-beta, Greenseer prunes with:
 - **Reverse futility pruning (RFP)** — at shallow depths, if the static evaluation already exceeds beta by a safe margin, the node is cut without searching further.
@@ -59,6 +62,5 @@ Engine strength is measured using [fastchess](https://github.com/Disservin/fastc
 
 - **Texel tuning** — fit evaluation weights via machine learning instead of hand-tuning
 - **Neural network experimentation** — explore learned evaluation functions as an alternative to hand-crafted heuristics
-- **Pondering** — think on the opponent's time by continuing to search during their turn
 - **More positional evaluation terms** — connected/protected passed pawns, knight outposts, connected rooks, piece batteries (e.g. queen/rook stacked on a file — "Alekhine's gun"), and space
-- **More search pruning/reduction techniques** — late move reductions (LMR), late move pruning (LMP), futility pruning, principal variation search (PVS), and aspiration windows
+- **More search pruning/reduction techniques** — late move reductions (LMR), late move pruning (LMP), futility pruning, aspiration windows, history heuristic, static exchange evaluation (SEE), internal iterative reduction (IIR), and singular extensions

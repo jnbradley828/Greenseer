@@ -333,7 +333,7 @@ pub fn negamax(
         let mut best_eval = -i16::MAX;
         let mut cutoff = false;
         let mut best_move = legal_moves[0];
-        for movei in legal_moves {
+        for (i, movei) in legal_moves.into_iter().enumerate() {
             if state.stop.load(Ordering::Relaxed) {
                 return (0, best_move, nodes, false);
             }
@@ -345,23 +345,71 @@ pub fn negamax(
             let mut child_pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
             _ = game.make_move(movei, false, true);
             // real move made - negate child score, swap alpha/beta.
-            let (child_eval, _, child_nodes, child_completed) = negamax(
-                game,
-                depth - 1,
-                -beta,
-                -alpha,
-                Arc::clone(&state),
-                false,
-                false,
-                qdepth,
-                tt,
-                killers,
-                ply + 1,
-                age,
-                best,
-                &mut child_pv,
-                true,
-            );
+            let (child_eval, _, child_nodes, child_completed) = if i == 0 || quiescence {
+                // principal variation search: if first move or quiescence search, search full window.
+                negamax(
+                    game,
+                    depth - 1,
+                    -beta,
+                    -alpha,
+                    Arc::clone(&state),
+                    false,
+                    false,
+                    qdepth,
+                    tt,
+                    killers,
+                    ply + 1,
+                    age,
+                    best,
+                    &mut child_pv,
+                    true,
+                )
+            } else {
+                // later moves, cheap null-window probe first
+                let probe = negamax(
+                    game,
+                    depth - 1,
+                    -alpha - 1,
+                    -alpha,
+                    Arc::clone(&state),
+                    false,
+                    false,
+                    qdepth,
+                    tt,
+                    killers,
+                    ply + 1,
+                    age,
+                    best,
+                    &mut child_pv,
+                    true,
+                );
+                if -probe.0 > alpha {
+                    // it beat our test, we need its real score
+                    child_pv.clear();
+                    let full_eval = negamax(
+                        game,
+                        depth - 1,
+                        -beta,
+                        -alpha,
+                        Arc::clone(&state),
+                        false,
+                        false,
+                        qdepth,
+                        tt,
+                        killers,
+                        ply + 1,
+                        age,
+                        best,
+                        &mut child_pv,
+                        true,
+                    );
+                    (full_eval.0, full_eval.1, full_eval.2 + probe.2, full_eval.3)
+                } else {
+                    // it is not better than alpha
+                    probe
+                }
+            };
+
             let eval = -child_eval;
             nodes += child_nodes;
             _ = game.unmake_move(false);
