@@ -1,7 +1,6 @@
 // search-algorithm constants, tuned via SPRT/node counts - not eval weights (see eval_heuristics.rs).
 
 pub const MAX_QDEPTH: u8 = 6;
-pub const MATE_THRESHOLD: i16 = 9000; // score magnitude beyond which a value is mate-distance
 
 pub const MOVE_OVERHEAD: u32 = 20; // ms reserved off the clock before time-management math
 

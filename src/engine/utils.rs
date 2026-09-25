@@ -10,7 +10,8 @@ use crate::engine::eval_heuristics::{
     KING_OPEN_FILE_MULT, KING_SEMIOPEN_FILE_MULT, MG_PAWN_SHIELD_BONUS, TT_AGE_FACTOR,
 };
 use crate::engine::search::{MAX_PV_LEN, TT};
-use crate::engine::search_heuristics::MATE_THRESHOLD;
+
+pub const MATE_THRESHOLD: i16 = 9000; // score magnitude beyond which a value is mate-distance
 
 // tt slot: (full zobrist key, packed data). data (msb->lsb): score:16, depth:6, flag:2, best_move:16, age:8.
 pub const TT_EXACT_FLAG: u8 = 0;

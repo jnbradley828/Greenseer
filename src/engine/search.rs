@@ -10,12 +10,12 @@ use oxi_chess_lib::{
 use crate::engine::eval::relative_evaluate;
 use crate::engine::eval_heuristics::PIECE_VALUES;
 use crate::engine::search_heuristics::{
-    MATE_THRESHOLD, NMP_MIN_DEPTH, NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH,
-    RFP_MAX_DEPTH, VICTIM_WEIGHT,
+    NMP_MIN_DEPTH, NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH,
+    VICTIM_WEIGHT,
 };
 use crate::engine::utils::{
-    TT_EXACT_FLAG, TT_LOWERB_FLAG, TT_UPPERB_FLAG, from_tt_score, has_pieces, is_capture,
-    move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
+    MATE_THRESHOLD, TT_EXACT_FLAG, TT_LOWERB_FLAG, TT_UPPERB_FLAG, from_tt_score, has_pieces,
+    is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
 };
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

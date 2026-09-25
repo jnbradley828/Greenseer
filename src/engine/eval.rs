@@ -1,9 +1,9 @@
 use crate::engine::eval_heuristics::*;
 use crate::engine::search::{self, MAX_PV_LEN, RootBest, SearchState, TT, negamax};
-use crate::engine::search_heuristics::{MATE_THRESHOLD, MAX_QDEPTH};
+use crate::engine::search_heuristics::MAX_QDEPTH;
 use crate::engine::utils::{
-    KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, king_file_weakness_mult, pawn_backward,
-    pawn_isolated, pawn_passed, pawn_shield_score, pv_to_uci,
+    KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, MATE_THRESHOLD, king_file_weakness_mult,
+    pawn_backward, pawn_isolated, pawn_passed, pawn_shield_score, pv_to_uci,
 };
 use arrayvec::ArrayVec;
 use oxi_chess_lib::board::ChessBoard;
