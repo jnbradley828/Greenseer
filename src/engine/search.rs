@@ -2,7 +2,10 @@ use arrayvec::ArrayVec;
 use oxi_chess_lib::{
     board::ChessBoard,
     game::{ChessGame, GameResult},
-    moves::get_legal_moves,
+    moves::{
+        get_bishop_attacks, get_legal_moves, get_queen_attacks, get_rook_attacks, king_attacks,
+        knight_attacks, pawn_attacks, square_attacked,
+    },
     rules,
     utils::decode_move,
 };
@@ -470,7 +473,7 @@ pub fn negamax(
     }
 }
 
-// orders legal_moves in place: tt best move, then captures, then killer moves, then the rest.
+// orders legal_moves in place: tt best move, then good captures, then killer moves, then the rest.
 // a best_move/killer not actually legal here (killers are ply-indexed, so can carry over from a
 // different position sharing this ply) is silently skipped.
 pub fn reorder_moves(
@@ -480,7 +483,8 @@ pub fn reorder_moves(
     killer_moves: [Option<u16>; 2],
 ) {
     let mut ordered: ArrayVec<u16, 256> = ArrayVec::new();
-    let mut captures: ArrayVec<(u16, i16), 256> = ArrayVec::new();
+    let mut good_captures: ArrayVec<(u16, i16), 256> = ArrayVec::new();
+    let mut bad_captures: ArrayVec<(u16, i16), 256> = ArrayVec::new();
     let mut rest: ArrayVec<u16, 256> = ArrayVec::new();
 
     if let Some(mv) = best_move
@@ -493,33 +497,25 @@ pub fn reorder_moves(
         if Some(mv) == best_move {
             continue;
         } else if is_capture(mv) {
-            captures.push((mv, 0));
+            // sort by SEE capture score
+            let capscore = unfold_gains(capture_gains(mv, board));
+            if capscore >= 0 {
+                good_captures.push((mv, capscore));
+            } else {
+                bad_captures.push((mv, capscore));
+            }
         } else if !killer_moves.contains(&Some(mv)) {
             rest.push(mv);
         }
         // else: a stored killer - placed in the killer pass below.
     }
 
-    // MVV-LVA: capture_score = k * value(victim) - value(aggressor), sorted descending.
-    for i in 0..captures.len() {
-        let [from_sqi, to_sqi, _] = decode_move(captures[i].0);
-
-        let aggressor_type: u8;
-        let victim_type: u8;
-        if 1u64 << to_sqi == board.en_passant {
-            aggressor_type = 0;
-            victim_type = 0;
-        } else {
-            aggressor_type = board.piece_type_at(from_sqi).unwrap();
-            victim_type = board.piece_type_at(to_sqi).unwrap(); // unwrap should be safe since there must be a piece there during a capture.
-        }
-        let aggressor_score = PIECE_VALUES[aggressor_type as usize];
-        let victim_score = VICTIM_WEIGHT * PIECE_VALUES[victim_type as usize];
-        captures[i].1 = victim_score - aggressor_score;
-    }
-    captures.sort_unstable_by_key(|&(_, score)| std::cmp::Reverse(score));
-
-    ordered.extend(captures.iter().map(|&(mv, _)| mv));
+    // sort captures by capscore within good and bad buckets
+    // use unstable sort because it is faster and we don't need original ordering
+    // maintained in case of ties.
+    good_captures.sort_unstable_by_key(|&(_, score)| -score);
+    ordered.extend(good_captures.iter().map(|&(mv, _)| mv));
+    bad_captures.sort_unstable_by_key(|&(_, score)| -score);
 
     for killer in killer_moves {
         if let Some(mv) = killer
@@ -530,12 +526,192 @@ pub fn reorder_moves(
         }
     }
     ordered.extend(rest);
+    ordered.extend(bad_captures.iter().map(|&(mv, _)| mv));
 
     *legal_moves = ordered;
 }
 
+// MVV-LVA backup after switching to SEE
+/*
+// MVV-LVA: capture_score = k * value(victim) - value(aggressor), sorted descending.
+for i in 0..captures.len() {
+    let [from_sqi, to_sqi, _] = decode_move(captures[i].0);
+
+    let aggressor_type: u8;
+    let victim_type: u8;
+    if 1u64 << to_sqi == board.en_passant {
+        aggressor_type = 0;
+        victim_type = 0;
+    } else {
+        aggressor_type = board.piece_type_at(from_sqi).unwrap();
+        victim_type = board.piece_type_at(to_sqi).unwrap(); // unwrap should be safe since there must be a piece there during a capture.
+    }
+    let aggressor_score = PIECE_VALUES[aggressor_type as usize];
+    let victim_score = VICTIM_WEIGHT * PIECE_VALUES[victim_type as usize];
+    captures[i].1 = victim_score - aggressor_score;
+}
+captures.sort_unstable_by_key(|&(_, score)| std::cmp::Reverse(score));
+
+ordered.extend(captures.iter().map(|&(mv, _)| mv));
+*/
+
+// SEE (static exchange evaluation)
+
+// finds the full static capture sequence (exhaustive) of a move in capture order of ascending piece value.
+pub fn capture_gains(mv: u16, board: &ChessBoard) -> ArrayVec<i16, 32> {
+    let [from_sqi, to_sqi, flag] = decode_move(mv);
+    let mut occupying_type = board.piece_type_at(from_sqi).unwrap();
+
+    let mut gains: ArrayVec<i16, 32> = ArrayVec::new();
+    // if move is not a capture, just return an empty array.
+    if ![1, 3, 8, 9, 10, 11].contains(&(flag as i32)) {
+        return gains;
+    }
+
+    // if from_square piece is a king, then we assume it is a legal king move.
+    // therefore, the captured piece is undefended and simply return the value of that piece.
+    if occupying_type == 5 {
+        gains.push(PIECE_VALUES[board.piece_type_at(to_sqi).unwrap() as usize]);
+        return gains;
+    }
+
+    // keep a bitboard of vacated squares to allow x-raying pieces to capture after the blocking piece moves.
+    let mut vacated: u64 = 1 << from_sqi;
+
+    if flag == 3 {
+        // vacated piece is different for en passant.
+        gains.push(PIECE_VALUES[0]);
+        if board.side_to_move {
+            vacated |= 1 << (to_sqi - 8);
+        } else {
+            vacated |= 1 << (to_sqi + 8);
+        }
+    } else {
+        gains.push(PIECE_VALUES[board.piece_type_at(to_sqi).unwrap() as usize]);
+    }
+
+    let mut to_move = !board.side_to_move;
+    let mut capturing = true;
+    // piece markers represent index into PIECE_VALUES of piece we are checking for.
+    // goes in ascending order of value - assumed to be pawn, knight, bishop, rook, queen
+    // regardless of parameter tuning.
+    let mut white_piece_marker: usize = 0;
+    let mut black_piece_marker: usize = 0;
+    let mut sliding_misses: u8 = 0;
+
+    while capturing {
+        let piece_marker: &mut usize;
+        let own_pieces: u64;
+        if to_move {
+            piece_marker = &mut white_piece_marker;
+            own_pieces = board.white_pieces & !vacated;
+        } else {
+            piece_marker = &mut black_piece_marker;
+            own_pieces = board.black_pieces & !vacated;
+        }
+        let occupied = (board.white_pieces | board.black_pieces) & !vacated;
+
+        // find all current attackers of specified piece on the capture square
+        let attackers = match piece_marker {
+            0 => pawn_attacks(!to_move, 1 << to_sqi, 0) & (own_pieces & board.pawns),
+            1 => knight_attacks(1 << to_sqi, 0) & (own_pieces & board.knights),
+            2 => get_bishop_attacks(to_sqi, 0, occupied) & (own_pieces & board.bishops),
+            3 => get_rook_attacks(to_sqi, 0, occupied) & (own_pieces & board.rooks),
+            4 => get_queen_attacks(to_sqi, 0, occupied) & (own_pieces & board.queens),
+            _ => 0,
+        };
+
+        // if there are no attackers present
+        if attackers == 0 {
+            if [2, 3, 4].contains(&(*piece_marker as i32)) {
+                // if piece type marker is a sliding type, we need a consecutive miss on every sliding piece type to
+                // constitute termination of the algorithm, due to potential x-ray attacks.
+                sliding_misses += 1;
+                if sliding_misses == 3 {
+                    capturing = false;
+                    // if you're out of attackers, the opponent is out of attackers, your king attacks the square, and the opponent's king does not, you are allowed to use the king as your final attacker
+                    if !square_attacked(!to_move, 1 << to_sqi, board, Some(vacated), None)
+                        && king_attacks(board.kings & occupied & !own_pieces, 0) & (1 << to_sqi)
+                            == 0
+                        && king_attacks(board.kings & own_pieces, 0) & (1 << to_sqi) != 0
+                    {
+                        gains.push(PIECE_VALUES[occupying_type as usize]);
+                    }
+                    continue;
+                }
+            }
+
+            if *piece_marker == 4 {
+                // wrap around back to bishop if it's currently queen
+                // necessary to check all x-ray combinations.
+                // never wraps back around to pawn or knight since discovered/x-ray attacks are not possible
+                *piece_marker = 2;
+            } else {
+                *piece_marker += 1;
+            }
+            continue;
+        } else {
+            // if there are attackers present
+            sliding_misses = 0;
+            // once you're in sliding pieces, always default to a bishop for the next iteration
+            // after an iteration in which you performed a capture
+            if *piece_marker > 1 {
+                *piece_marker = 2;
+            }
+
+            let attackeri: u8 = attackers.trailing_zeros() as u8; // just use one attacker arbitrarily if there are multiple of the same piece type
+            let attacker: u64 = 1 << attackeri;
+            gains.push(PIECE_VALUES[occupying_type as usize]);
+            vacated |= attacker;
+            to_move = !to_move;
+            occupying_type = board.piece_type_at(attackeri).unwrap();
+        }
+    }
+
+    return gains;
+}
+
+// unfolds gain sequence found in capture_gains() into a capture score
+pub fn unfold_gains(gains: ArrayVec<i16, 32>) -> i16 {
+    if gains.len() == 0 {
+        return 0;
+    }
+
+    let mut gains = gains;
+    let mut i = gains.len() - 1;
+    while i > 1 {
+        if gains[i - 1] >= gains[i] {
+            // if the net gain from this portion of the trade is positive,
+            // make the value of gains[i-1] = the net gain.
+            gains[i - 1] = gains[i - 1] - gains[i];
+            i -= 1;
+        } else {
+            // otherwise, discard the trade, the player to move would not willingly
+            // enter this trade if they played rationally.
+            i -= 2;
+            if gains.len() > 2 {
+                gains.pop();
+            }
+        }
+        gains.pop();
+    }
+
+    if gains.len() == 2 {
+        gains[0] - gains[1]
+    } else {
+        gains[0]
+    }
+}
+
 #[cfg(test)]
-mod tt_clone_share_test {
+mod tests {
+    use arrayvec::ArrayVec;
+    use oxi_chess_lib::board::ChessBoard;
+    use oxi_chess_lib::utils::encode_move;
+
+    use crate::engine::eval_heuristics::PIECE_VALUES;
+    use crate::engine::search::{capture_gains, unfold_gains};
+
     use super::TT;
     use std::sync::atomic::Ordering;
     use std::thread;
@@ -563,5 +739,84 @@ mod tt_clone_share_test {
             seen, 123456789,
             "write through tt_a's clone was not visible through tt_b's clone"
         );
+    }
+
+    #[test]
+    fn test_capture_gains() {
+        let board =
+            ChessBoard::initialize_from_fen("k2r4/1b3b2/2p1p3/3r4/2P1P3/1B3B2/3R4/K2Q4 w - - 0 1")
+                .unwrap();
+        let mv = encode_move(28, 35, 1);
+        let correct_gains: ArrayVec<i16, 32> = [
+            PIECE_VALUES[3],
+            PIECE_VALUES[0],
+            PIECE_VALUES[0],
+            PIECE_VALUES[0],
+            PIECE_VALUES[0],
+            PIECE_VALUES[2],
+            PIECE_VALUES[2],
+            PIECE_VALUES[2],
+            PIECE_VALUES[2],
+            PIECE_VALUES[3],
+            PIECE_VALUES[3],
+        ]
+        .into_iter()
+        .collect();
+        let gains = capture_gains(mv, &board);
+
+        assert_eq!(correct_gains, gains);
+
+        let board =
+            ChessBoard::initialize_from_fen("8/8/2bn1n2/8/3kPK2/8/3NQ3/8 b - - 0 1").unwrap();
+        let mv = encode_move(43, 28, 1);
+        let correct_gains: ArrayVec<i16, 32> = [
+            PIECE_VALUES[0],
+            PIECE_VALUES[1],
+            PIECE_VALUES[1],
+            PIECE_VALUES[1],
+            PIECE_VALUES[4],
+        ]
+        .into_iter()
+        .collect();
+        let gains = capture_gains(mv, &board);
+
+        assert_eq!(correct_gains, gains);
+    }
+
+    #[test]
+    fn test_unfold_gains() {
+        let gains: ArrayVec<i16, 32> = [
+            PIECE_VALUES[3],
+            PIECE_VALUES[0],
+            PIECE_VALUES[0],
+            PIECE_VALUES[0],
+            PIECE_VALUES[0],
+            PIECE_VALUES[2],
+            PIECE_VALUES[2],
+            PIECE_VALUES[2],
+            PIECE_VALUES[2],
+            PIECE_VALUES[3],
+            PIECE_VALUES[3],
+        ]
+        .into_iter()
+        .collect();
+
+        let correct_score = PIECE_VALUES[3];
+        let unfolded_score = unfold_gains(gains);
+        assert_eq!(correct_score, unfolded_score);
+
+        let gains: ArrayVec<i16, 32> = [
+            PIECE_VALUES[0],
+            PIECE_VALUES[1],
+            PIECE_VALUES[1],
+            PIECE_VALUES[1],
+            PIECE_VALUES[4],
+        ]
+        .into_iter()
+        .collect();
+
+        let correct_score = PIECE_VALUES[0];
+        let unfolded_score = unfold_gains(gains);
+        assert_eq!(correct_score, unfolded_score);
     }
 }
