@@ -2,23 +2,23 @@
 ┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Field                ┃ Value                   ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ time_depth_control   │ 1+0.01                  │
+│ time_depth_control   │ 10+0.1                  │
 │ hash_size            │ 128MB                   │
 │ opening_suite        │ UHO_Lichess_4852_v1.epd │
-│ estimated_elo_diff   │ 24.36                   │
-│ elo_estimation_error │ 56.09                   │
-│ los                  │ 80.55%                  │
-│ draw_ratio           │ 44.00%                  │
-│ pairs_ratio          │ 2.11                    │
-│ games                │ 100,                    │
-│ wins                 │ 46,                     │
-│ losses               │ 39,                     │
-│ draws                │ 15,                     │
-│ points               │ 53.5                    │
-│ points_pct           │ 53.50%                  │
-│ ptnmls               │ [8, 1, 22, 14, 5]       │
-│ llr                  │ 0.20                    │
-│ llr_pct              │ 6.8%                    │
+│ estimated_elo_diff   │ 95.21                   │
+│ elo_estimation_error │ 31.14                   │
+│ los                  │ 100.00%                 │
+│ draw_ratio           │ 36.90%                  │
+│ pairs_ratio          │ 3.54                    │
+│ games                │ 374,                    │
+│ wins                 │ 200,                    │
+│ losses               │ 100,                    │
+│ draws                │ 74,                     │
+│ points               │ 237.0                   │
+│ points_pct           │ 63.37%                  │
+│ ptnmls               │ [14, 12, 69, 44, 48]    │
+│ llr                  │ 2.97                    │
+│ llr_pct              │ 100.8%                  │
 │ llr_h0               │ -2.94                   │
 │ llr_h1               │ 2.94                    │
 │ h0_elo               │ 0.00                    │
@@ -29,8 +29,8 @@
 ┃ Engine   ┃          ┃      Avg ┃    Total ┃    Total ┃
 ┃ Version  ┃  Avg NPS ┃    Depth ┃    Nodes ┃ Time (s) ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━┩
-│ dev      │ 1,667,5… │     5.71 │ 259,598… │   155.68 │
-│ main     │ 1,688,7… │     5.58 │ 262,755… │   155.59 │
-│ abs_diff │  -21,224 │    +0.13 │ -3,157,… │    +0.09 │
-│ pct_diff │   -1.26% │   +2.26% │   -1.20% │   +0.06% │
+│ dev      │ 1,375,6… │     8.66 │ 8,131,4… │ 5,910.83 │
+│ main     │ 1,376,5… │     8.26 │ 8,136,4… │ 5,910.60 │
+│ abs_diff │     -890 │    +0.39 │ -4,943,… │    +0.23 │
+│ pct_diff │   -0.06% │   +4.77% │   -0.06% │   +0.00% │
 └──────────┴──────────┴──────────┴──────────┴──────────┘

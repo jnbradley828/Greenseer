@@ -336,12 +336,14 @@ pub fn negamax(
         let mut best_eval = -i16::MAX;
         let mut cutoff = false;
         let mut best_move = legal_moves[0];
+
+        if quiescence {
+            good_captures_only(&game.board, &mut legal_moves);
+        }
+
         for (i, movei) in legal_moves.into_iter().enumerate() {
             if state.stop.load(Ordering::Relaxed) {
                 return (0, best_move, nodes, false);
-            }
-            if quiescence && !is_capture(movei) {
-                continue;
             }
 
             // scratch buffer - only spliced into our pv below if movei becomes the new best.
@@ -528,6 +530,24 @@ pub fn reorder_moves(
     ordered.extend(rest);
     ordered.extend(bad_captures.iter().map(|&(mv, _)| mv));
 
+    *legal_moves = ordered;
+}
+
+pub fn good_captures_only(board: &ChessBoard, legal_moves: &mut ArrayVec<u16, 256>) {
+    let mut good_caps: ArrayVec<(u16, i16), 256> = ArrayVec::new();
+
+    for &mv in legal_moves.iter() {
+        if is_capture(mv) {
+            let capscore = unfold_gains(capture_gains(mv, board));
+            if capscore >= 0 {
+                good_caps.push((mv, capscore));
+            }
+        }
+    }
+
+    good_caps.sort_unstable_by_key(|&(_, score)| -score);
+    let mut ordered: ArrayVec<u16, 256> = ArrayVec::new();
+    ordered.extend(good_caps.iter().map(|&(mv, _)| mv));
     *legal_moves = ordered;
 }
 
