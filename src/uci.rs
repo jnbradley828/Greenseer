@@ -1,9 +1,6 @@
 use crate::engine::eval::iteratively_deepen;
 use crate::engine::search::{RootBest, SearchState, TT};
-use crate::engine::search_heuristics::{
-    INC_FRACTION_DENOM, INC_FRACTION_NUM, MAX_TIME_FRACTION, MOVE_OVERHEAD, PANIC_THRESHOLD_MS,
-    SINGLE_LEGAL_MOVE_TIME_MS, TIME_DIVISOR,
-};
+use crate::engine::params::sp;
 use oxi_chess_lib::game::ChessGame;
 use oxi_chess_lib::game::GameResult::InProgress;
 use oxi_chess_lib::utils::decode_to_uci;
@@ -284,10 +281,11 @@ fn handle_go(
             );
         }
         (_, _, Some(wt), Some(bt), _, _) => {
+            let sp = sp();
             let (time, inc, opptime) = if game.board.side_to_move {
-                (wt.saturating_sub(MOVE_OVERHEAD), winc.unwrap_or(0), bt)
+                (wt.saturating_sub(sp.move_overhead), winc.unwrap_or(0), bt)
             } else {
-                (bt.saturating_sub(MOVE_OVERHEAD), binc.unwrap_or(0), wt)
+                (bt.saturating_sub(sp.move_overhead), binc.unwrap_or(0), wt)
             };
 
             // mt_suggested: internal target passed to iteratively_deepen. external_mt: hard
@@ -295,17 +293,17 @@ fn handle_go(
             let mt_suggested: Option<u32>;
             let external_mt: u32;
 
-            if time <= PANIC_THRESHOLD_MS {
+            if time <= sp.panic_threshold_ms {
                 mt_suggested = None;
                 external_mt = 1;
             } else if game.legal_moves.len() == 1 {
                 mt_suggested = None;
-                external_mt = SINGLE_LEGAL_MOVE_TIME_MS;
+                external_mt = sp.single_legal_move_time_ms;
             } else {
-                let mut mt = (time / TIME_DIVISOR) + (inc * INC_FRACTION_NUM / INC_FRACTION_DENOM);
+                let mut mt = (time / sp.time_divisor) + (inc * sp.inc_fraction_num / sp.inc_fraction_denom);
                 mt = ((mt as f32) * (time as f32 / opptime as f32) + 0.5) as u32; // scales time based on time differential.
                 mt_suggested = Some(mt);
-                external_mt = (time as f32 * MAX_TIME_FRACTION) as u32;
+                external_mt = (time as f32 * sp.max_time_fraction) as u32;
             }
 
             let cancel = Arc::new(AtomicBool::new(false));

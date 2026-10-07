@@ -1,6 +1,5 @@
-use crate::engine::eval_heuristics::*;
 use crate::engine::search::{self, MAX_PV_LEN, RootBest, SearchState, TT, negamax};
-use crate::engine::search_heuristics::MAX_QDEPTH;
+use crate::engine::params::{ep, sp};
 use crate::engine::utils::{
     KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, MATE_THRESHOLD, king_file_weakness_mult,
     pawn_backward, pawn_isolated, pawn_passed, pawn_shield_score, pv_to_uci,
@@ -47,7 +46,7 @@ pub fn iteratively_deepen(
                 Arc::clone(&state),
                 false,
                 false,
-                MAX_QDEPTH,
+                sp().max_qdepth,
                 tt,
                 &mut killers,
                 0,
@@ -105,27 +104,28 @@ pub fn iteratively_deepen(
 
 // returns objective material count
 fn count_material(board: &ChessBoard, pawns: bool, total: bool) -> i16 {
+    let ep = ep();
     let mut material: i16 = 0;
 
     if pawns {
-        material += PIECE_VALUES[0] * (board.pawns & board.white_pieces).count_ones() as i16;
-        let bpawns = PIECE_VALUES[0] * (board.pawns & board.black_pieces).count_ones() as i16;
+        material += ep.piece_values[0] * (board.pawns & board.white_pieces).count_ones() as i16;
+        let bpawns = ep.piece_values[0] * (board.pawns & board.black_pieces).count_ones() as i16;
         if total {
             material += bpawns;
         } else {
             material -= bpawns;
         }
     }
-    material += PIECE_VALUES[1] * (board.knights & board.white_pieces).count_ones() as i16;
-    material += PIECE_VALUES[2] * (board.bishops & board.white_pieces).count_ones() as i16;
-    material += PIECE_VALUES[3] * (board.rooks & board.white_pieces).count_ones() as i16;
-    material += PIECE_VALUES[4] * (board.queens & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[1] * (board.knights & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[2] * (board.bishops & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[3] * (board.rooks & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[4] * (board.queens & board.white_pieces).count_ones() as i16;
 
     let mut b_material = 0;
-    b_material += PIECE_VALUES[1] * (board.knights & board.black_pieces).count_ones() as i16;
-    b_material += PIECE_VALUES[2] * (board.bishops & board.black_pieces).count_ones() as i16;
-    b_material += PIECE_VALUES[3] * (board.rooks & board.black_pieces).count_ones() as i16;
-    b_material += PIECE_VALUES[4] * (board.queens & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[1] * (board.knights & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[2] * (board.bishops & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[3] * (board.rooks & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[4] * (board.queens & board.black_pieces).count_ones() as i16;
     if total {
         material += b_material;
     } else {
@@ -150,6 +150,7 @@ const C: f32 = 15.0;
 
 // returns objective positional modifications to score.
 pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i16) -> i16 {
+    let ep = ep();
     let major_piece_count = count_material(board, false, true);
 
     let w_bbs: [u64; 6] = [
@@ -197,10 +198,10 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
 
     // king safety: nonlinear scaling of raw attack units, clamped to avoid unbounded swings.
     // mg-only - fades out via phase weighting below.
-    let w_units = w_king_attack_units.min(MAX_KING_ATTACK_UNITS) as f32;
-    let b_units = b_king_attack_units.min(MAX_KING_ATTACK_UNITS) as f32;
-    let w_base_danger = KING_ATTACK_LINEAR * w_units + KING_ATTACK_QUADRATIC * w_units * w_units;
-    let b_base_danger = KING_ATTACK_LINEAR * b_units + KING_ATTACK_QUADRATIC * b_units * b_units;
+    let w_units = w_king_attack_units.min(ep.max_king_attack_units) as f32;
+    let b_units = b_king_attack_units.min(ep.max_king_attack_units) as f32;
+    let w_base_danger = ep.king_attack_linear * w_units + ep.king_attack_quadratic * w_units * w_units;
+    let b_base_danger = ep.king_attack_linear * b_units + ep.king_attack_quadratic * b_units * b_units;
     // open/semi-open files amplify existing pressure rather than adding danger on their own.
     let w_king_danger =
         (w_base_danger * king_file_weakness_mult(b_king_sq as u8, false, board)).round() as i16;
@@ -212,12 +213,12 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
     let w_bishops = (board.bishops & board.white_pieces).count_ones();
     let b_bishops = (board.bishops & board.black_pieces).count_ones();
     if w_bishops >= 2 {
-        mg_modifier += MG_BISHOP_PAIR_BONUS;
-        eg_modifier += EG_BISHOP_PAIR_BONUS;
+        mg_modifier += ep.mg_bishop_pair_bonus;
+        eg_modifier += ep.eg_bishop_pair_bonus;
     }
     if b_bishops >= 2 {
-        mg_modifier -= MG_BISHOP_PAIR_BONUS;
-        eg_modifier -= EG_BISHOP_PAIR_BONUS;
+        mg_modifier -= ep.mg_bishop_pair_bonus;
+        eg_modifier -= ep.eg_bishop_pair_bonus;
     }
 
     // give a penalty for doubled pawns
@@ -229,10 +230,10 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
         bdb_pawns_count +=
             ((file_mask & board.black_pieces & board.pawns).count_ones() as i16 - 1).max(0);
     }
-    mg_modifier -= (wdb_pawns_count - bdb_pawns_count) * MG_DOUBLED_PAWN_PENALTY;
-    eg_modifier -= (wdb_pawns_count - bdb_pawns_count) * EG_DOUBLED_PAWN_PENALTY;
+    mg_modifier -= (wdb_pawns_count - bdb_pawns_count) * ep.mg_doubled_pawn_penalty;
+    eg_modifier -= (wdb_pawns_count - bdb_pawns_count) * ep.eg_doubled_pawn_penalty;
 
-    let mg_frac = major_piece_count as f32 / MG_PHASE_SPAN as f32;
+    let mg_frac = major_piece_count as f32 / ep.mg_phase_span as f32;
     let mg_weighted = mg_frac * mg_modifier as f32;
     let eg_weighted = (1.0 - mg_frac) * eg_modifier as f32;
 
@@ -246,10 +247,10 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
         let w_queen_home: bool = (board.queens & board.white_pieces) & 0x0000000000000008 != 0;
         let b_queen_home: bool = (board.queens & board.black_pieces) & 0x0800000000000000 != 0;
         if !w_queen_home {
-            early_queen_mod -= ((7 - board.fullmove_number) as i16) * EARLY_QUEEN_FACTOR;
+            early_queen_mod -= ((7 - board.fullmove_number) as i16) * ep.early_queen_factor;
         }
         if !b_queen_home {
-            early_queen_mod += ((7 - board.fullmove_number) as i16) * EARLY_QUEEN_FACTOR;
+            early_queen_mod += ((7 - board.fullmove_number) as i16) * ep.early_queen_factor;
         }
     }
 
@@ -257,9 +258,9 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
     result += trading_incentive;
     result += early_queen_mod;
     if board.side_to_move {
-        result += TEMPO_BONUS;
+        result += ep.tempo_bonus;
     } else {
-        result -= TEMPO_BONUS;
+        result -= ep.tempo_bonus;
     }
 
     result
@@ -276,38 +277,39 @@ pub fn bb_to_posmod(
     enemy_king_sq: usize,
     enemy_king_zone: u64,
 ) -> (i16, i16, i16, i16) {
+    let ep = ep();
     let mg_mask: &[i8; 64];
     let eg_mask: &[i8; 64];
     let mobility_factor: i16;
     match piece_type {
         0 => {
-            mg_mask = &MG_PAWN_MOD;
-            eg_mask = &EG_PAWN_MOD;
+            mg_mask = &ep.mg_pawn_mod;
+            eg_mask = &ep.eg_pawn_mod;
             mobility_factor = 0;
         }
         1 => {
-            mg_mask = &MG_KNIGHT_MOD;
-            eg_mask = &EG_KNIGHT_MOD;
-            mobility_factor = MOBILITY_BONUS[0];
+            mg_mask = &ep.mg_knight_mod;
+            eg_mask = &ep.eg_knight_mod;
+            mobility_factor = ep.mobility_bonus[0];
         }
         2 => {
-            mg_mask = &MG_BISHOP_MOD;
-            eg_mask = &EG_BISHOP_MOD;
-            mobility_factor = MOBILITY_BONUS[1];
+            mg_mask = &ep.mg_bishop_mod;
+            eg_mask = &ep.eg_bishop_mod;
+            mobility_factor = ep.mobility_bonus[1];
         }
         3 => {
-            mg_mask = &MG_ROOK_MOD;
-            eg_mask = &EG_ROOK_MOD;
-            mobility_factor = MOBILITY_BONUS[2];
+            mg_mask = &ep.mg_rook_mod;
+            eg_mask = &ep.eg_rook_mod;
+            mobility_factor = ep.mobility_bonus[2];
         }
         4 => {
-            mg_mask = &MG_QUEEN_MOD;
-            eg_mask = &EG_QUEEN_MOD;
-            mobility_factor = MOBILITY_BONUS[3];
+            mg_mask = &ep.mg_queen_mod;
+            eg_mask = &ep.eg_queen_mod;
+            mobility_factor = ep.mobility_bonus[3];
         }
         5 => {
-            mg_mask = &MG_KING_MOD;
-            eg_mask = &EG_KING_MOD;
+            mg_mask = &ep.mg_king_mod;
+            eg_mask = &ep.eg_king_mod;
             mobility_factor = 0;
         }
         _ => panic!("unexpected piece type value: {}", piece_type),
@@ -324,7 +326,7 @@ pub fn bb_to_posmod(
             // O(1) via precomputed mask instead of generating attacks per pawn.
             king_attack_units += (bb & KING_ZONE_PAWN_ATTACKERS[0][enemy_king_sq]).count_ones()
                 as i16
-                * KING_ATTACK_WEIGHT[0];
+                * ep.king_attack_weight[0];
         }
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
@@ -341,30 +343,30 @@ pub fn bb_to_posmod(
                 };
                 mobility_score += attacks.count_ones() as i16 * mobility_factor;
                 king_attack_units += (attacks & enemy_king_zone).count_ones() as i16
-                    * KING_ATTACK_WEIGHT[piece_type as usize];
+                    * ep.king_attack_weight[piece_type as usize];
             }
             if piece_type == 0 {
                 let rank = rank_value(1u64 << i);
                 // rank 7 is always passed - baked into MG_PAWN_MOD/EG_PAWN_MOD's rank 7 row instead.
                 if rank < 7 && pawn_passed(i as u8, true, board) {
                     let idx = (rank - 2) as usize;
-                    mg_modifier += MG_PASSED_PAWN_BONUS[idx];
-                    eg_modifier += EG_PASSED_PAWN_BONUS[idx];
+                    mg_modifier += ep.mg_passed_pawn_bonus[idx];
+                    eg_modifier += ep.eg_passed_pawn_bonus[idx];
                 }
                 if pawn_isolated(i as u8, true, board) {
-                    mg_modifier -= MG_ISOLATED_PAWN_PENALTY;
-                    eg_modifier -= EG_ISOLATED_PAWN_PENALTY;
+                    mg_modifier -= ep.mg_isolated_pawn_penalty;
+                    eg_modifier -= ep.eg_isolated_pawn_penalty;
                 } else if pawn_backward(i as u8, true, board) {
-                    mg_modifier -= MG_BACKWARD_PAWN_PENALTY;
-                    eg_modifier -= EG_BACKWARD_PAWN_PENALTY;
+                    mg_modifier -= ep.mg_backward_pawn_penalty;
+                    eg_modifier -= ep.eg_backward_pawn_penalty;
                 }
             }
             if piece_type == 3 {
                 let file_i = (file_value(1u64 << i) - 1) as usize;
                 if FILE_MASK[file_i] & board.pawns == 0 {
-                    mg_modifier += OPEN_FILE_ROOK;
+                    mg_modifier += ep.open_file_rook;
                 } else if FILE_MASK[file_i] & (board.pawns & board.white_pieces) == 0 {
-                    mg_modifier += SEMIOPEN_FILE_ROOK;
+                    mg_modifier += ep.semiopen_file_rook;
                 }
             }
             if piece_type == 5 {
@@ -376,7 +378,7 @@ pub fn bb_to_posmod(
             // O(1) via precomputed mask instead of generating attacks per pawn.
             king_attack_units += (bb & KING_ZONE_PAWN_ATTACKERS[1][enemy_king_sq]).count_ones()
                 as i16
-                * KING_ATTACK_WEIGHT[0];
+                * ep.king_attack_weight[0];
         }
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
@@ -393,30 +395,30 @@ pub fn bb_to_posmod(
                 };
                 mobility_score -= attacks.count_ones() as i16 * mobility_factor;
                 king_attack_units += (attacks & enemy_king_zone).count_ones() as i16
-                    * KING_ATTACK_WEIGHT[piece_type as usize];
+                    * ep.king_attack_weight[piece_type as usize];
             }
             if piece_type == 0 {
                 let rank = rank_value(1u64 << i);
                 // rank 2 is always passed - baked into MG_PAWN_MOD/EG_PAWN_MOD's rank 7 row instead.
                 if rank > 2 && pawn_passed(i as u8, false, board) {
                     let idx = (7 - rank) as usize;
-                    mg_modifier -= MG_PASSED_PAWN_BONUS[idx];
-                    eg_modifier -= EG_PASSED_PAWN_BONUS[idx];
+                    mg_modifier -= ep.mg_passed_pawn_bonus[idx];
+                    eg_modifier -= ep.eg_passed_pawn_bonus[idx];
                 }
                 if pawn_isolated(i as u8, false, board) {
-                    mg_modifier += MG_ISOLATED_PAWN_PENALTY;
-                    eg_modifier += EG_ISOLATED_PAWN_PENALTY;
+                    mg_modifier += ep.mg_isolated_pawn_penalty;
+                    eg_modifier += ep.eg_isolated_pawn_penalty;
                 } else if pawn_backward(i as u8, false, board) {
-                    mg_modifier += MG_BACKWARD_PAWN_PENALTY;
-                    eg_modifier += EG_BACKWARD_PAWN_PENALTY;
+                    mg_modifier += ep.mg_backward_pawn_penalty;
+                    eg_modifier += ep.eg_backward_pawn_penalty;
                 }
             }
             if piece_type == 3 {
                 let file_i = (file_value(1u64 << i) - 1) as usize;
                 if FILE_MASK[file_i] & board.pawns == 0 {
-                    mg_modifier -= OPEN_FILE_ROOK;
+                    mg_modifier -= ep.open_file_rook;
                 } else if FILE_MASK[file_i] & (board.pawns & board.black_pieces) == 0 {
-                    mg_modifier -= SEMIOPEN_FILE_ROOK;
+                    mg_modifier -= ep.semiopen_file_rook;
                 }
             }
             if piece_type == 5 {
@@ -480,7 +482,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                MAX_QDEPTH,
+                sp().max_qdepth,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,
@@ -507,7 +509,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                MAX_QDEPTH,
+                sp().max_qdepth,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,
@@ -534,7 +536,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                MAX_QDEPTH,
+                sp().max_qdepth,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,
@@ -561,7 +563,7 @@ mod tests {
                 Arc::new(SearchState::new()),
                 false,
                 false,
-                MAX_QDEPTH,
+                sp().max_qdepth,
                 &mut tt,
                 &mut search::KillerTable::new(),
                 0,

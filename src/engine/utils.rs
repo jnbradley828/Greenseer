@@ -6,9 +6,7 @@ use oxi_chess_lib::moves::{BLACK_PAWN_ATTACKS, WHITE_PAWN_ATTACKS, square_attack
 use oxi_chess_lib::utils::{decode_move, decode_to_uci, file_value, rank_value};
 
 use crate::engine::eval::{FILE_MASK, RANK_MASK};
-use crate::engine::eval_heuristics::{
-    KING_OPEN_FILE_MULT, KING_SEMIOPEN_FILE_MULT, MG_PAWN_SHIELD_BONUS, TT_AGE_FACTOR,
-};
+use crate::engine::params::{EvalParams, ep};
 use crate::engine::search::{MAX_PV_LEN, TT};
 
 pub const MATE_THRESHOLD: i16 = 9000; // score magnitude beyond which a value is mate-distance
@@ -283,8 +281,17 @@ const fn generate_king_zone_pawn_attacker_masks() -> [[u64; 64]; 2] {
     masks
 }
 
+// piece_type 0-5 = pawn, knight, bishop, rook, queen, king. king is fixed at 0 (not in piece_values).
+pub fn piece_value(ep: &EvalParams, piece_type: u8) -> i16 {
+    if piece_type == 5 {
+        return 0;
+    }
+    ep.piece_values[piece_type as usize]
+}
+
 // sums MG_PAWN_SHIELD_BONUS over the king's file and both adjacent files.
 pub fn pawn_shield_score(king_sq_i: u8, color: bool, board: &ChessBoard) -> i16 {
+    let ep = ep();
     let king_sq: u64 = 1 << king_sq_i;
     let king_file = file_value(king_sq) as i8; // 1-8
     let king_rank = rank_value(king_sq) as i8; // 1-8
@@ -300,7 +307,7 @@ pub fn pawn_shield_score(king_sq_i: u8, color: bool, board: &ChessBoard) -> i16 
     while file <= king_file + 1 {
         if (1..=8).contains(&file) {
             let file_pawns = FILE_MASK[(file - 1) as usize] & friendly_pawns;
-            score += MG_PAWN_SHIELD_BONUS[shield_file_tier(file_pawns, king_rank, color)];
+            score += ep.mg_pawn_shield_bonus[shield_file_tier(file_pawns, king_rank, color)];
         }
         file += 1;
     }
@@ -309,6 +316,7 @@ pub fn pawn_shield_score(king_sq_i: u8, color: bool, board: &ChessBoard) -> i16 
 
 // multiplier on king-attack danger from open/semi-open files near the king - see KING_OPEN_FILE_MULT.
 pub fn king_file_weakness_mult(king_sq_i: u8, color: bool, board: &ChessBoard) -> f32 {
+    let ep = ep();
     let king_sq: u64 = 1 << king_sq_i;
     let king_file = file_value(king_sq) as i8; // 1-8
 
@@ -324,9 +332,9 @@ pub fn king_file_weakness_mult(king_sq_i: u8, color: bool, board: &ChessBoard) -
         if (1..=8).contains(&file) {
             let file_mask = FILE_MASK[(file - 1) as usize];
             if file_mask & board.pawns == 0 {
-                mult += KING_OPEN_FILE_MULT;
+                mult += ep.king_open_file_mult;
             } else if file_mask & friendly_pawns == 0 {
-                mult += KING_SEMIOPEN_FILE_MULT;
+                mult += ep.king_semiopen_file_mult;
             }
         }
         file += 1;
@@ -354,7 +362,7 @@ fn shield_file_tier(file_pawns: u64, king_rank: i8, color: bool) -> usize {
 
 // higher is more relevant - depth, penalized per move of staleness.
 pub fn relevance_score(depth: u8, entry_age: u8, current_age: u8) -> i16 {
-    depth as i16 - (current_age.wrapping_sub(entry_age) as i16) * TT_AGE_FACTOR
+    depth as i16 - (current_age.wrapping_sub(entry_age) as i16) * ep().tt_age_factor
 }
 
 // root-relative mate score -> ply-independent score for tt storage.

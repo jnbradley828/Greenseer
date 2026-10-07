@@ -11,13 +11,9 @@ use oxi_chess_lib::{
 };
 
 use crate::engine::eval::relative_evaluate;
-use crate::engine::eval_heuristics::PIECE_VALUES;
-use crate::engine::search_heuristics::{
-    NMP_MIN_DEPTH, NMP_REDUCTION, RFP_MARGIN_BASE, RFP_MARGIN_PER_DEPTH, RFP_MAX_DEPTH,
-    VICTIM_WEIGHT,
-};
+use crate::engine::params::{ep, sp};
 use crate::engine::utils::{
-    MATE_THRESHOLD, TT_EXACT_FLAG, TT_LOWERB_FLAG, TT_UPPERB_FLAG, from_tt_score, has_pieces,
+    MATE_THRESHOLD, piece_value, TT_EXACT_FLAG, TT_LOWERB_FLAG, TT_UPPERB_FLAG, from_tt_score, has_pieces,
     is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
 };
 use std::sync::Arc;
@@ -257,15 +253,16 @@ pub fn negamax(
         let mut legal_moves: ArrayVec<u16, 256>;
 
         if !quiescence && !check_extension {
+            let sp = sp();
             // RFP_MAX_DEPTH >= NMP_MIN_DEPTH so every depth is eligible for at least one of RFP/NMP
             // below - computing this once avoids a redundant is_check on nodes eligible for both.
             let in_check = rules::is_check(&game.board, game.board.side_to_move);
 
             // reverse futility pruning: eval >= beta + margin means deeper search is unneeded.
             // low depths, non-mate beta, non-check only. not tt-stored (only a static eval).
-            if depth <= RFP_MAX_DEPTH && beta > -MATE_THRESHOLD && !in_check {
+            if depth <= sp.rfp_max_depth && beta > -MATE_THRESHOLD && !in_check {
                 let static_eval = relative_evaluate(&game.board);
-                let margin = RFP_MARGIN_BASE + (depth as i16 * RFP_MARGIN_PER_DEPTH);
+                let margin = sp.rfp_margin_base + (depth as i16 * sp.rfp_margin_per_depth);
                 if static_eval - margin >= beta {
                     return (static_eval, 0, nodes, true);
                 }
@@ -274,7 +271,7 @@ pub fn negamax(
             // null move pruning: skipping your move still scores >= beta -> prune the subtree.
             // high depths, non-mate beta, non-check, has major pieces (no null move in zugzwang).
             if allow_null
-                && depth >= NMP_MIN_DEPTH
+                && depth >= sp.nmp_min_depth
                 && beta < MATE_THRESHOLD
                 && has_pieces(&game.board)
                 && !in_check
@@ -285,7 +282,7 @@ pub fn negamax(
                     let mut null_pv: ArrayVec<u16, MAX_PV_LEN> = ArrayVec::new();
                     let (score, _, null_nodes, completed) = negamax(
                         game,
-                        depth - 1 - NMP_REDUCTION,
+                        depth - 1 - sp.nmp_reduction,
                         -beta,
                         -beta + 1,
                         state.clone(),
@@ -566,8 +563,8 @@ for i in 0..captures.len() {
         aggressor_type = board.piece_type_at(from_sqi).unwrap();
         victim_type = board.piece_type_at(to_sqi).unwrap(); // unwrap should be safe since there must be a piece there during a capture.
     }
-    let aggressor_score = PIECE_VALUES[aggressor_type as usize];
-    let victim_score = VICTIM_WEIGHT * PIECE_VALUES[victim_type as usize];
+    let aggressor_score = piece_value(ep, aggressor_type);
+    let victim_score = sp().victim_weight * piece_value(ep, victim_type);
     captures[i].1 = victim_score - aggressor_score;
 }
 captures.sort_unstable_by_key(|&(_, score)| std::cmp::Reverse(score));
@@ -579,6 +576,7 @@ ordered.extend(captures.iter().map(|&(mv, _)| mv));
 
 // finds the full static capture sequence (exhaustive) of a move in capture order of ascending piece value.
 pub fn capture_gains(mv: u16, board: &ChessBoard) -> ArrayVec<i16, 32> {
+    let ep = ep();
     let [from_sqi, to_sqi, flag] = decode_move(mv);
     let mut occupying_type = board.piece_type_at(from_sqi).unwrap();
 
@@ -591,7 +589,7 @@ pub fn capture_gains(mv: u16, board: &ChessBoard) -> ArrayVec<i16, 32> {
     // if from_square piece is a king, then we assume it is a legal king move.
     // therefore, the captured piece is undefended and simply return the value of that piece.
     if occupying_type == 5 {
-        gains.push(PIECE_VALUES[board.piece_type_at(to_sqi).unwrap() as usize]);
+        gains.push(piece_value(ep, board.piece_type_at(to_sqi).unwrap()));
         return gains;
     }
 
@@ -600,14 +598,14 @@ pub fn capture_gains(mv: u16, board: &ChessBoard) -> ArrayVec<i16, 32> {
 
     if flag == 3 {
         // vacated piece is different for en passant.
-        gains.push(PIECE_VALUES[0]);
+        gains.push(ep.piece_values[0]);
         if board.side_to_move {
             vacated |= 1 << (to_sqi - 8);
         } else {
             vacated |= 1 << (to_sqi + 8);
         }
     } else {
-        gains.push(PIECE_VALUES[board.piece_type_at(to_sqi).unwrap() as usize]);
+        gains.push(piece_value(ep, board.piece_type_at(to_sqi).unwrap()));
     }
 
     let mut to_move = !board.side_to_move;
@@ -655,7 +653,7 @@ pub fn capture_gains(mv: u16, board: &ChessBoard) -> ArrayVec<i16, 32> {
                             == 0
                         && king_attacks(board.kings & own_pieces, 0) & (1 << to_sqi) != 0
                     {
-                        gains.push(PIECE_VALUES[occupying_type as usize]);
+                        gains.push(piece_value(ep, occupying_type));
                     }
                     continue;
                 }
@@ -681,7 +679,7 @@ pub fn capture_gains(mv: u16, board: &ChessBoard) -> ArrayVec<i16, 32> {
 
             let attackeri: u8 = attackers.trailing_zeros() as u8; // just use one attacker arbitrarily if there are multiple of the same piece type
             let attacker: u64 = 1 << attackeri;
-            gains.push(PIECE_VALUES[occupying_type as usize]);
+            gains.push(piece_value(ep, occupying_type));
             vacated |= attacker;
             to_move = !to_move;
             occupying_type = board.piece_type_at(attackeri).unwrap();
@@ -729,7 +727,7 @@ mod tests {
     use oxi_chess_lib::board::ChessBoard;
     use oxi_chess_lib::utils::encode_move;
 
-    use crate::engine::eval_heuristics::PIECE_VALUES;
+    use crate::engine::params::ep;
     use crate::engine::search::{capture_gains, unfold_gains};
 
     use super::TT;
@@ -768,17 +766,17 @@ mod tests {
                 .unwrap();
         let mv = encode_move(28, 35, 1);
         let correct_gains: ArrayVec<i16, 32> = [
-            PIECE_VALUES[3],
-            PIECE_VALUES[0],
-            PIECE_VALUES[0],
-            PIECE_VALUES[0],
-            PIECE_VALUES[0],
-            PIECE_VALUES[2],
-            PIECE_VALUES[2],
-            PIECE_VALUES[2],
-            PIECE_VALUES[2],
-            PIECE_VALUES[3],
-            PIECE_VALUES[3],
+            ep().piece_values[3],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[2],
+            ep().piece_values[2],
+            ep().piece_values[2],
+            ep().piece_values[2],
+            ep().piece_values[3],
+            ep().piece_values[3],
         ]
         .into_iter()
         .collect();
@@ -790,11 +788,11 @@ mod tests {
             ChessBoard::initialize_from_fen("8/8/2bn1n2/8/3kPK2/8/3NQ3/8 b - - 0 1").unwrap();
         let mv = encode_move(43, 28, 1);
         let correct_gains: ArrayVec<i16, 32> = [
-            PIECE_VALUES[0],
-            PIECE_VALUES[1],
-            PIECE_VALUES[1],
-            PIECE_VALUES[1],
-            PIECE_VALUES[4],
+            ep().piece_values[0],
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[4],
         ]
         .into_iter()
         .collect();
@@ -806,36 +804,36 @@ mod tests {
     #[test]
     fn test_unfold_gains() {
         let gains: ArrayVec<i16, 32> = [
-            PIECE_VALUES[3],
-            PIECE_VALUES[0],
-            PIECE_VALUES[0],
-            PIECE_VALUES[0],
-            PIECE_VALUES[0],
-            PIECE_VALUES[2],
-            PIECE_VALUES[2],
-            PIECE_VALUES[2],
-            PIECE_VALUES[2],
-            PIECE_VALUES[3],
-            PIECE_VALUES[3],
+            ep().piece_values[3],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[2],
+            ep().piece_values[2],
+            ep().piece_values[2],
+            ep().piece_values[2],
+            ep().piece_values[3],
+            ep().piece_values[3],
         ]
         .into_iter()
         .collect();
 
-        let correct_score = PIECE_VALUES[3];
+        let correct_score = ep().piece_values[3];
         let unfolded_score = unfold_gains(gains);
         assert_eq!(correct_score, unfolded_score);
 
         let gains: ArrayVec<i16, 32> = [
-            PIECE_VALUES[0],
-            PIECE_VALUES[1],
-            PIECE_VALUES[1],
-            PIECE_VALUES[1],
-            PIECE_VALUES[4],
+            ep().piece_values[0],
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[4],
         ]
         .into_iter()
         .collect();
 
-        let correct_score = PIECE_VALUES[0];
+        let correct_score = ep().piece_values[0];
         let unfolded_score = unfold_gains(gains);
         assert_eq!(correct_score, unfolded_score);
     }
