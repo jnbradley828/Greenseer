@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde_big_array::BigArray;
-use std::sync::OnceLock;
 
 // search-algorithm constants, tuned via SPRT/node counts - not eval weights (see EvalParams).
 #[derive(Deserialize, Debug)]
@@ -87,80 +86,109 @@ pub struct EvalParams {
     pub eg_king_mod: [i8; 64],
 }
 
-pub static SEARCH_PARAMS: OnceLock<SearchParams> = OnceLock::new();
-pub static EVAL_PARAMS: OnceLock<EvalParams> = OnceLock::new();
+#[cfg(not(feature = "tuning"))]
+mod baked_params {
+    use super::*;
+    include!(concat!(env!("OUT_DIR"), "/params_const.rs"));
 
-// fills both boxes from the toml files. called once by main; getters also call it if the boxes
-// are still empty (e.g. under cargo test, where main never runs).
-pub fn initialize_params() {
-    let eval_config = parse_param_toml(ParameterType::Evaluation, None);
-    let search_config = parse_param_toml(ParameterType::Search, None);
-
-    // set() fails if already filled - fine to ignore, since parallel test threads can race here.
-    if let ParamConfig::Eval(params) = eval_config {
-        let _ = EVAL_PARAMS.set(params);
+    pub fn initialize_params() {}
+    pub fn sp() -> &'static SearchParams {
+        &SEARCH_PARAMS
     }
-    if let ParamConfig::Search(params) = search_config {
-        let _ = SEARCH_PARAMS.set(params);
+    pub fn ep() -> &'static EvalParams {
+        &EVAL_PARAMS
     }
 }
 
-pub fn sp() -> &'static SearchParams {
-    match SEARCH_PARAMS.get() {
-        Some(params) => params,
-        None => {
-            initialize_params();
-            SEARCH_PARAMS.get().unwrap()
+#[cfg(not(feature = "tuning"))]
+pub use baked_params::*;
+
+// TUNING ONLY BUILD: BUILD PARAMS AT STARTUP AND INCUR A ROUGHLY 5% SLOWDOWN COST
+// DUE TO PARAMETER LOOKUPS INSTEAD OF BEING FOLDED INTO THE BINARY
+
+#[cfg(feature = "tuning")]
+mod tuning {
+    use super::*;
+    use std::sync::OnceLock;
+
+    pub static SEARCH_PARAMS: OnceLock<SearchParams> = OnceLock::new();
+    pub static EVAL_PARAMS: OnceLock<EvalParams> = OnceLock::new();
+
+    // fills both boxes from the toml files. called once by main; getters also call it if the boxes
+    // are still empty (e.g. under cargo test, where main never runs).
+    pub fn initialize_params() {
+        let eval_config = parse_param_toml(ParameterType::Evaluation, None);
+        let search_config = parse_param_toml(ParameterType::Search, None);
+
+        // set() fails if already filled - fine to ignore, since parallel test threads can race here.
+        if let ParamConfig::Eval(params) = eval_config {
+            let _ = EVAL_PARAMS.set(params);
+        }
+        if let ParamConfig::Search(params) = search_config {
+            let _ = SEARCH_PARAMS.set(params);
         }
     }
-}
 
-pub fn ep() -> &'static EvalParams {
-    match EVAL_PARAMS.get() {
-        Some(params) => params,
-        None => {
-            initialize_params();
-            EVAL_PARAMS.get().unwrap()
+    pub fn sp() -> &'static SearchParams {
+        match SEARCH_PARAMS.get() {
+            Some(params) => params,
+            None => {
+                initialize_params();
+                SEARCH_PARAMS.get().unwrap()
+            }
         }
     }
-}
 
-enum ParameterType {
-    Evaluation,
-    Search,
-}
+    pub fn ep() -> &'static EvalParams {
+        match EVAL_PARAMS.get() {
+            Some(params) => params,
+            None => {
+                initialize_params();
+                EVAL_PARAMS.get().unwrap()
+            }
+        }
+    }
 
-enum ParamConfig {
-    Eval(EvalParams),
-    Search(SearchParams),
-}
+    enum ParameterType {
+        Evaluation,
+        Search,
+    }
 
-fn parse_param_toml(param_type: ParameterType, path: Option<&str>) -> ParamConfig {
-    let params_path: &str;
-    if path.is_none() {
+    enum ParamConfig {
+        Eval(EvalParams),
+        Search(SearchParams),
+    }
+
+    fn parse_param_toml(param_type: ParameterType, path: Option<&str>) -> ParamConfig {
+        let params_path: &str;
+        if path.is_none() {
+            match param_type {
+                ParameterType::Evaluation => params_path = "src/engine/eval_heuristics.toml",
+                ParameterType::Search => params_path = "src/engine/search_heuristics.toml",
+            }
+        } else {
+            params_path = path.unwrap();
+        }
+
+        let params_str = std::fs::read_to_string(params_path).unwrap();
+        let params_table: toml::Table = toml::from_str(&params_str).unwrap();
+        let params_vals: toml::Table = params_table
+            .into_iter()
+            .map(|(name, entry)| (name, entry["value"].clone()))
+            .collect();
+
         match param_type {
-            ParameterType::Evaluation => params_path = "src/engine/eval_heuristics.toml",
-            ParameterType::Search => params_path = "src/engine/search_heuristics.toml",
-        }
-    } else {
-        params_path = path.unwrap();
-    }
-
-    let params_str = std::fs::read_to_string(params_path).unwrap();
-    let params_table: toml::Table = toml::from_str(&params_str).unwrap();
-    let params_vals: toml::Table = params_table
-        .into_iter()
-        .map(|(name, entry)| (name, entry["value"].clone()))
-        .collect();
-
-    match param_type {
-        ParameterType::Evaluation => {
-            let params: EvalParams = params_vals.try_into().unwrap();
-            ParamConfig::Eval(params)
-        }
-        ParameterType::Search => {
-            let params: SearchParams = params_vals.try_into().unwrap();
-            ParamConfig::Search(params)
+            ParameterType::Evaluation => {
+                let params: EvalParams = params_vals.try_into().unwrap();
+                ParamConfig::Eval(params)
+            }
+            ParameterType::Search => {
+                let params: SearchParams = params_vals.try_into().unwrap();
+                ParamConfig::Search(params)
+            }
         }
     }
 }
+
+#[cfg(feature = "tuning")]
+pub use tuning::*;
