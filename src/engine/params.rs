@@ -117,8 +117,36 @@ mod tuning {
     // fills both boxes from the toml files. called once by main; getters also call it if the boxes
     // are still empty (e.g. under cargo test, where main never runs).
     pub fn initialize_params() {
-        let eval_config = parse_param_toml(ParameterType::Evaluation, None);
-        let search_config = parse_param_toml(ParameterType::Search, None);
+        let args: Vec<String> = std::env::args().collect();
+
+        // returns None if no flag, else returns path to folder containing params.
+        let params_path = args.iter().position(|a| a == "--params_path").map(|i| {
+            args.get(i + 1)
+                .expect("--params_path needs a path to a folder after it")
+                .as_str()
+        });
+        if let Some(p) = params_path {
+            if std::path::Path::new(&p).is_relative() {
+                panic!("--params_path must be absolute.");
+            }
+        }
+
+        let eval_path: Option<&str>;
+        let search_path: Option<&str>;
+        let eps: String;
+        let sps: String;
+        if params_path.is_some() {
+            eps = [params_path.unwrap(), "/eval_heuristics.toml"].concat();
+            eval_path = Some(&eps);
+            sps = [params_path.unwrap(), "/search_heuristics.toml"].concat();
+            search_path = Some(&sps);
+        } else {
+            eval_path = None;
+            search_path = None;
+        }
+
+        let eval_config = parse_param_toml(ParameterType::Evaluation, eval_path);
+        let search_config = parse_param_toml(ParameterType::Search, search_path);
 
         // set() fails if already filled - fine to ignore, since parallel test threads can race here.
         if let ParamConfig::Eval(params) = eval_config {
@@ -163,8 +191,18 @@ mod tuning {
         let params_path: &str;
         if path.is_none() {
             match param_type {
-                ParameterType::Evaluation => params_path = "src/engine/eval_heuristics.toml",
-                ParameterType::Search => params_path = "src/engine/search_heuristics.toml",
+                ParameterType::Evaluation => {
+                    params_path = concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/src/engine/eval_heuristics.toml"
+                    )
+                }
+                ParameterType::Search => {
+                    params_path = concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/src/engine/search_heuristics.toml"
+                    )
+                }
             }
         } else {
             params_path = path.unwrap();
