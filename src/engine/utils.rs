@@ -6,7 +6,7 @@ use oxi_chess_lib::moves::{BLACK_PAWN_ATTACKS, WHITE_PAWN_ATTACKS, square_attack
 use oxi_chess_lib::utils::{decode_move, decode_to_uci, file_value, rank_value};
 
 use crate::engine::eval::{FILE_MASK, RANK_MASK};
-use crate::engine::params::{EvalParams, ep};
+use crate::engine::params::{EvalParams, PAWN_VALUE, ep};
 use crate::engine::search::{MAX_PV_LEN, TT};
 
 pub const MATE_THRESHOLD: i16 = 9000; // score magnitude beyond which a value is mate-distance
@@ -281,12 +281,14 @@ const fn generate_king_zone_pawn_attacker_masks() -> [[u64; 64]; 2] {
     masks
 }
 
-// piece_type 0-5 = pawn, knight, bishop, rook, queen, king. king is fixed at 0 (not in piece_values).
+// piece_type 0-5 = pawn, knight, bishop, rook, queen, king. pawn is PAWN_VALUE and king is fixed at 0
+// (neither is in piece_values, which starts at knight).
 pub fn piece_value(ep: &EvalParams, piece_type: u8) -> i16 {
-    if piece_type == 5 {
-        return 0;
+    match piece_type {
+        0 => PAWN_VALUE,
+        5 => 0,
+        _ => ep.piece_values[piece_type as usize - 1],
     }
-    ep.piece_values[piece_type as usize]
 }
 
 // sums MG_PAWN_SHIELD_BONUS over the king's file and both adjacent files.

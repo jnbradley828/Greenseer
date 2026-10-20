@@ -1,5 +1,5 @@
 use crate::engine::search::{self, MAX_PV_LEN, RootBest, SearchState, TT, negamax};
-use crate::engine::params::{ep, sp};
+use crate::engine::params::{PAWN_VALUE, ep, sp};
 use crate::engine::utils::{
     KING_ZONE_MASKS, KING_ZONE_PAWN_ATTACKERS, MATE_THRESHOLD, king_file_weakness_mult,
     pawn_backward, pawn_isolated, pawn_passed, pawn_shield_score, pv_to_uci,
@@ -108,24 +108,24 @@ fn count_material(board: &ChessBoard, pawns: bool, total: bool) -> i16 {
     let mut material: i16 = 0;
 
     if pawns {
-        material += ep.piece_values[0] * (board.pawns & board.white_pieces).count_ones() as i16;
-        let bpawns = ep.piece_values[0] * (board.pawns & board.black_pieces).count_ones() as i16;
+        material += PAWN_VALUE * (board.pawns & board.white_pieces).count_ones() as i16;
+        let bpawns = PAWN_VALUE * (board.pawns & board.black_pieces).count_ones() as i16;
         if total {
             material += bpawns;
         } else {
             material -= bpawns;
         }
     }
-    material += ep.piece_values[1] * (board.knights & board.white_pieces).count_ones() as i16;
-    material += ep.piece_values[2] * (board.bishops & board.white_pieces).count_ones() as i16;
-    material += ep.piece_values[3] * (board.rooks & board.white_pieces).count_ones() as i16;
-    material += ep.piece_values[4] * (board.queens & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[0] * (board.knights & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[1] * (board.bishops & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[2] * (board.rooks & board.white_pieces).count_ones() as i16;
+    material += ep.piece_values[3] * (board.queens & board.white_pieces).count_ones() as i16;
 
     let mut b_material = 0;
-    b_material += ep.piece_values[1] * (board.knights & board.black_pieces).count_ones() as i16;
-    b_material += ep.piece_values[2] * (board.bishops & board.black_pieces).count_ones() as i16;
-    b_material += ep.piece_values[3] * (board.rooks & board.black_pieces).count_ones() as i16;
-    b_material += ep.piece_values[4] * (board.queens & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[0] * (board.knights & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[1] * (board.bishops & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[2] * (board.rooks & board.black_pieces).count_ones() as i16;
+    b_material += ep.piece_values[3] * (board.queens & board.black_pieces).count_ones() as i16;
     if total {
         material += b_material;
     } else {

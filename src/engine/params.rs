@@ -27,10 +27,13 @@ pub struct SearchParams {
     pub victim_weight: i16, // MVV-LVA victim weight
 }
 
+// pawn is the fixed unit of material - not tunable, so it lives outside piece_values.
+pub const PAWN_VALUE: i16 = 100;
+
 // tunable evaluation weights.
 #[derive(Deserialize, Debug)]
 pub struct EvalParams {
-    pub piece_values: [i16; 5], // [p, n, b, r, q]
+    pub piece_values: [i16; 4], // [n, b, r, q] - pawn is PAWN_VALUE
     pub mg_phase_span: i16,     // non-pawn material span for mg/eg phase blend
 
     pub tt_age_factor: i16,

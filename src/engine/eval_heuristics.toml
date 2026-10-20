@@ -1,5 +1,5 @@
 [piece_values]
-value = [100, 300, 300, 500, 900]
+value = [300, 300, 500, 900]
 step = 10
 min = 50
 max = 1200

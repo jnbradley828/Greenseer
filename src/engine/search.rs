@@ -11,7 +11,7 @@ use oxi_chess_lib::{
 };
 
 use crate::engine::eval::relative_evaluate;
-use crate::engine::params::{ep, sp};
+use crate::engine::params::{PAWN_VALUE, ep, sp};
 use crate::engine::utils::{
     MATE_THRESHOLD, piece_value, TT_EXACT_FLAG, TT_LOWERB_FLAG, TT_UPPERB_FLAG, from_tt_score, has_pieces,
     is_capture, move_gives_check, retrieve_tt_or_none, to_tt_score, update_tt,
@@ -598,7 +598,7 @@ pub fn capture_gains(mv: u16, board: &ChessBoard) -> ArrayVec<i16, 32> {
 
     if flag == 3 {
         // vacated piece is different for en passant.
-        gains.push(ep.piece_values[0]);
+        gains.push(PAWN_VALUE);
         if board.side_to_move {
             vacated |= 1 << (to_sqi - 8);
         } else {
@@ -727,7 +727,7 @@ mod tests {
     use oxi_chess_lib::board::ChessBoard;
     use oxi_chess_lib::utils::encode_move;
 
-    use crate::engine::params::ep;
+    use crate::engine::params::{PAWN_VALUE, ep};
     use crate::engine::search::{capture_gains, unfold_gains};
 
     use super::TT;
@@ -766,17 +766,17 @@ mod tests {
                 .unwrap();
         let mv = encode_move(28, 35, 1);
         let correct_gains: ArrayVec<i16, 32> = [
-            ep().piece_values[3],
-            ep().piece_values[0],
-            ep().piece_values[0],
-            ep().piece_values[0],
-            ep().piece_values[0],
+            ep().piece_values[2],
+            PAWN_VALUE,
+            PAWN_VALUE,
+            PAWN_VALUE,
+            PAWN_VALUE,
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[1],
             ep().piece_values[2],
             ep().piece_values[2],
-            ep().piece_values[2],
-            ep().piece_values[2],
-            ep().piece_values[3],
-            ep().piece_values[3],
         ]
         .into_iter()
         .collect();
@@ -788,11 +788,11 @@ mod tests {
             ChessBoard::initialize_from_fen("8/8/2bn1n2/8/3kPK2/8/3NQ3/8 b - - 0 1").unwrap();
         let mv = encode_move(43, 28, 1);
         let correct_gains: ArrayVec<i16, 32> = [
+            PAWN_VALUE,
             ep().piece_values[0],
-            ep().piece_values[1],
-            ep().piece_values[1],
-            ep().piece_values[1],
-            ep().piece_values[4],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[3],
         ]
         .into_iter()
         .collect();
@@ -804,36 +804,36 @@ mod tests {
     #[test]
     fn test_unfold_gains() {
         let gains: ArrayVec<i16, 32> = [
-            ep().piece_values[3],
-            ep().piece_values[0],
-            ep().piece_values[0],
-            ep().piece_values[0],
-            ep().piece_values[0],
+            ep().piece_values[2],
+            PAWN_VALUE,
+            PAWN_VALUE,
+            PAWN_VALUE,
+            PAWN_VALUE,
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[1],
+            ep().piece_values[1],
             ep().piece_values[2],
             ep().piece_values[2],
-            ep().piece_values[2],
-            ep().piece_values[2],
-            ep().piece_values[3],
-            ep().piece_values[3],
         ]
         .into_iter()
         .collect();
 
-        let correct_score = ep().piece_values[3];
+        let correct_score = ep().piece_values[2];
         let unfolded_score = unfold_gains(gains);
         assert_eq!(correct_score, unfolded_score);
 
         let gains: ArrayVec<i16, 32> = [
+            PAWN_VALUE,
             ep().piece_values[0],
-            ep().piece_values[1],
-            ep().piece_values[1],
-            ep().piece_values[1],
-            ep().piece_values[4],
+            ep().piece_values[0],
+            ep().piece_values[0],
+            ep().piece_values[3],
         ]
         .into_iter()
         .collect();
 
-        let correct_score = ep().piece_values[0];
+        let correct_score = PAWN_VALUE;
         let unfolded_score = unfold_gains(gains);
         assert_eq!(correct_score, unfolded_score);
     }
