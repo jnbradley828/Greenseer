@@ -1,5 +1,0 @@
-click==8.4.2
-questionary==2.1.1
-rich==15.0.0
-numpy==2.4.6
-tomli_w==1.2.0
