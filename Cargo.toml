@@ -15,3 +15,8 @@ toml = "1.1.6"
 
 [features]
 tuning = []
+
+[[bin]]
+name = "texel"
+path = "src/bin/texel.rs"
+required-features = ["tuning"]

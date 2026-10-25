@@ -9,3 +9,4 @@
 /python/benches/tournament_configs
 /python/benches/tournament_logs
 .zed
+__pycache__

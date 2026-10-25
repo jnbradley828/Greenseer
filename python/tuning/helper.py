@@ -43,6 +43,13 @@ def flatten_params(data) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray
         np.array(maxes, dtype=np.float64),
     )
 
+def perturb_one_parameter(params: np.ndarray, index: int):
+    params_minus = params.copy()
+    params_minus[index] -= 1
+    params_plus = params.copy()
+    params_plus[index] += 1
+    return (params_minus, params_plus)
+
 def unflatten_params(data, values):
     i = 0
     datac = copy.deepcopy(data)
