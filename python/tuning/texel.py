@@ -7,8 +7,9 @@ import subprocess
 import numpy as np
 import tempfile
 import shutil
+import os
 
-# This module runs stochastic logistic regression on evaluation parameters based on "Texel's Tuning Method".
+# This module runs coordinate descent on sigmoid-MSE loss over evaluation parameters based on "Texel's Tuning Method".
 
 ENGINE_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "engine"
 # this script calls Greenseer's texel binary directly to retrieve evaluations.
@@ -17,19 +18,12 @@ ENGINE_TEXEL_BIN = Path(__file__).resolve().parent.parent.parent / "target" / "r
 def sigmoid(col: pl.Expr) -> pl.Expr:
     return 1 / (1 + (-col).exp())
 
-# Imports lichess's chess-positions-evaluations dataset from
+# Loads Stockfish-evaluated positions from a random shard of
 # https://huggingface.co/datasets/Lichess/chess-position-evaluations
-# Contains over 400 million positions evaluated by Stockfish (best engine in the world currently)
-# We select a random shard of 20 million and try to select roughly 1 million positions to use.
-# The same position has multiple evaluations, so we must first discard all rows of each position
-# except for the highest depth evaluation.
-# Then, a random 6 million positions are selected and after filtering only for quiet, usable positions
-# (not check, no captures available, not chess960 castling rights), we should get roughly 1 million unique positions
-# since roughly 16% of positions match this requirement!
-# The randomness is to ensure parameters are not overfit and allow for each training run to have different results,
-# that may or may not improve the engine.
+# Keeps the deepest eval per position, oversamples, then filters to quiet, usable positions
+# (not in check, no captures available, no chess960 castling rights).
 
-DESIRED_SAMPLE_SIZE = 1_000_000
+DESIRED_SAMPLE_SIZE = 200_000
 QUIET_POSITION_RATE = 0.16
 OVERSAMPLE = round(DESIRED_SAMPLE_SIZE / QUIET_POSITION_RATE)
 def import_positions_dataset() -> pl.DataFrame:
@@ -48,7 +42,7 @@ def import_positions_dataset() -> pl.DataFrame:
         .filter(pl.col("fen").map_elements(_is_usable, return_dtype=pl.Boolean))
     )
 
-    print("Dataset loaded.")
+    print(f"Dataset of sample size {df.height} loaded.")
     return df
 
 def _is_usable(fen: str) -> bool:
@@ -135,6 +129,7 @@ def tuning_run(binary_path: Path, params_dir_path: Path) -> tuple[float, float]:
     df = normalize_evals(df)
     df = calculate_losses(df)
     initial_loss = calculate_loss(df)
+    last_loss = initial_loss
     final_loss = initial_loss
 
     iterations = 0
@@ -144,12 +139,18 @@ def tuning_run(binary_path: Path, params_dir_path: Path) -> tuple[float, float]:
         print(f'Current iteration: {iterations}')
 
         final_loss, convergence = _one_epoch(final_loss, dataset, binary_path, params_dir_path)
-        pct_improvement = (initial_loss - final_loss) / initial_loss * 100
-        print(f"Loss improved by {pct_improvement:.2f}% so far")
+        pct_improvement_epoch = (last_loss - final_loss) / last_loss * 100
+        last_loss = final_loss
+        pct_improvement_total = (initial_loss - final_loss) / initial_loss * 100
+        print(f"Loss impoved by {pct_improvement_epoch:.2f}% this epoch.")
+        print(f"Loss improved by {pct_improvement_total:.2f}% total.")
 
     return (initial_loss, final_loss)
 
 def main():
+    # keep the mac awake until this script exits.
+    subprocess.Popen(["caffeinate", "-s", "-i", "-m", "-w", str(os.getpid())])
+
     initial_loss, final_loss = tuning_run(ENGINE_TEXEL_BIN, ENGINE_DIR)
     print("Tuning run complete!")
     print(f"Initial loss: {initial_loss}")

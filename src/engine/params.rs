@@ -25,6 +25,8 @@ pub struct SearchParams {
     pub nmp_reduction: u8,
 
     pub victim_weight: i16, // MVV-LVA victim weight
+
+    pub tt_age_factor: i16, // TT replacement: entry age penalty, in depth units per age step
 }
 
 // pawn is the fixed unit of material - not tunable, so it lives outside piece_values.
@@ -36,11 +38,11 @@ pub struct EvalParams {
     pub piece_values: [i16; 4], // [n, b, r, q] - pawn is PAWN_VALUE
     pub mg_phase_span: i16,     // non-pawn material span for mg/eg phase blend
 
-    pub tt_age_factor: i16,
     pub early_queen_factor: i16,
     pub open_file_rook: i16,
     pub semiopen_file_rook: i16,
     pub tempo_bonus: i16,
+    pub trade_incentive_factor: f32, // scales net/total material ratio: trade down when ahead, keep material when behind
     pub mg_bishop_pair_bonus: i16,
     pub eg_bishop_pair_bonus: i16,
     pub mobility_bonus: [i16; 4], // knight, bishop, rook, queen
@@ -64,29 +66,29 @@ pub struct EvalParams {
 
     // piece-square tables
     #[serde(with = "BigArray")]
-    pub mg_pawn_mod: [i8; 64],
+    pub mg_pawn_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub mg_knight_mod: [i8; 64],
+    pub mg_knight_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub mg_bishop_mod: [i8; 64],
+    pub mg_bishop_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub mg_rook_mod: [i8; 64],
+    pub mg_rook_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub mg_queen_mod: [i8; 64],
+    pub mg_queen_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub mg_king_mod: [i8; 64],
+    pub mg_king_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub eg_pawn_mod: [i8; 64],
+    pub eg_pawn_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub eg_knight_mod: [i8; 64],
+    pub eg_knight_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub eg_bishop_mod: [i8; 64],
+    pub eg_bishop_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub eg_rook_mod: [i8; 64],
+    pub eg_rook_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub eg_queen_mod: [i8; 64],
+    pub eg_queen_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub eg_king_mod: [i8; 64],
+    pub eg_king_mod: [i16; 64],
 }
 
 #[cfg(not(feature = "tuning"))]

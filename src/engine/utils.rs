@@ -6,7 +6,7 @@ use oxi_chess_lib::moves::{BLACK_PAWN_ATTACKS, WHITE_PAWN_ATTACKS, square_attack
 use oxi_chess_lib::utils::{decode_move, decode_to_uci, file_value, rank_value};
 
 use crate::engine::eval::{FILE_MASK, RANK_MASK};
-use crate::engine::params::{EvalParams, PAWN_VALUE, ep};
+use crate::engine::params::{EvalParams, PAWN_VALUE, ep, sp};
 use crate::engine::search::{MAX_PV_LEN, TT};
 
 pub const MATE_THRESHOLD: i16 = 9000; // score magnitude beyond which a value is mate-distance
@@ -364,7 +364,7 @@ fn shield_file_tier(file_pawns: u64, king_rank: i8, color: bool) -> usize {
 
 // higher is more relevant - depth, penalized per move of staleness.
 pub fn relevance_score(depth: u8, entry_age: u8, current_age: u8) -> i16 {
-    depth as i16 - (current_age.wrapping_sub(entry_age) as i16) * ep().tt_age_factor
+    depth as i16 - (current_age.wrapping_sub(entry_age) as i16) * sp().tt_age_factor
 }
 
 // root-relative mate score -> ply-independent score for tt storage.

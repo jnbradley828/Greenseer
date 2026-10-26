@@ -145,9 +145,6 @@ pub fn evaluate(board: &ChessBoard) -> i16 {
     eval
 }
 
-// value tuned based on fastchess match results.
-const C: f32 = 15.0;
-
 // returns objective positional modifications to score.
 pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i16) -> i16 {
     let ep = ep();
@@ -239,7 +236,7 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
 
     // trade incentive: down material -> keep total material high; up material -> keep it low.
     let trading_incentive =
-        (100.0 * C * (net_material as f32 / total_material as f32)).round() as i16;
+        (100.0 * ep.trade_incentive_factor * (net_material as f32 / total_material as f32)).round() as i16;
 
     // give a penalty for early queen moves.
     let mut early_queen_mod: i16 = 0;
@@ -278,8 +275,8 @@ pub fn bb_to_posmod(
     enemy_king_zone: u64,
 ) -> (i16, i16, i16, i16) {
     let ep = ep();
-    let mg_mask: &[i8; 64];
-    let eg_mask: &[i8; 64];
+    let mg_mask: &[i16; 64];
+    let eg_mask: &[i16; 64];
     let mobility_factor: i16;
     match piece_type {
         0 => {
@@ -331,8 +328,8 @@ pub fn bb_to_posmod(
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
-            mg_modifier += mg_mask[i] as i16;
-            eg_modifier += eg_mask[i] as i16;
+            mg_modifier += mg_mask[i];
+            eg_modifier += eg_mask[i];
             if mobility_factor != 0 {
                 let attacks: u64 = match piece_type {
                     1 => knight_attacks(1 << i, board.white_pieces),
@@ -383,8 +380,8 @@ pub fn bb_to_posmod(
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
-            mg_modifier -= mg_mask[63 - i] as i16;
-            eg_modifier -= eg_mask[63 - i] as i16;
+            mg_modifier -= mg_mask[63 - i];
+            eg_modifier -= eg_mask[63 - i];
             if mobility_factor != 0 {
                 let attacks: u64 = match piece_type {
                     1 => knight_attacks(1 << i, board.black_pieces),

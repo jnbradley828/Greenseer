@@ -6,6 +6,9 @@ import copy
 
 ENGINE_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "engine"
 
+# perturbation size for each parameter, by its type in the toml.
+STEP_SIZES = {int: 1, float: 0.01}
+
 def load_eval_params(dir_path = ENGINE_DIR):
     eval_h_path = dir_path / "eval_heuristics.toml"
     return load_parameters(eval_h_path)
@@ -37,17 +40,18 @@ def flatten_params(data) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray
         maxes.extend([param["max"]] * val_length)
 
     return (
-        np.array(values, dtype=np.float64),
+        np.array(values, dtype=object),
         np.array(steps, dtype=np.float64),
         np.array(mins, dtype=np.float64),
         np.array(maxes, dtype=np.float64),
     )
 
 def perturb_one_parameter(params: np.ndarray, index: int):
+    step = STEP_SIZES[type(params[index])]
     params_minus = params.copy()
-    params_minus[index] -= 1
+    params_minus[index] -= step
     params_plus = params.copy()
-    params_plus[index] += 1
+    params_plus[index] += step
     return (params_minus, params_plus)
 
 def unflatten_params(data, values):
