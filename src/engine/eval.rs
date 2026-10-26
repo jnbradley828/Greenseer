@@ -148,7 +148,13 @@ pub fn evaluate(board: &ChessBoard) -> i16 {
 // returns objective positional modifications to score.
 pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i16) -> i16 {
     let ep = ep();
-    let major_piece_count = count_material(board, false, true);
+    // phase: weighted non-pawn piece count, independent of material values. starting position = 1.0.
+    let pw = ep.phase_weights;
+    let phase = pw[0] as f32 * board.knights.count_ones() as f32
+        + pw[1] as f32 * board.bishops.count_ones() as f32
+        + pw[2] as f32 * board.rooks.count_ones() as f32
+        + pw[3] as f32 * board.queens.count_ones() as f32;
+    let phase_max = (4 * (pw[0] + pw[1] + pw[2]) + 2 * pw[3]) as f32;
 
     let w_bbs: [u64; 6] = [
         board.pawns & board.white_pieces,
@@ -170,7 +176,8 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
 
     let mut mg_modifier: i16 = 0;
     let mut eg_modifier: i16 = 0;
-    let mut mobility_score: i16 = 0;
+    let mut mg_mobility: f32 = 0.0;
+    let mut eg_mobility: f32 = 0.0;
     // raw attack units per side, summed across pieces before the nonlinear scaling below.
     let mut w_king_attack_units: i16 = 0;
     let mut b_king_attack_units: i16 = 0;
@@ -182,21 +189,26 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
     let b_king_zone = KING_ZONE_MASKS[b_king_sq];
 
     for i in 0..6 {
-        let (w_mg, w_eg, w_ms, w_au) =
+        let (w_mg, w_eg, w_mob, w_au) =
             bb_to_posmod(w_bbs[i], i as u8, true, board, b_king_sq, b_king_zone);
-        let (b_mg, b_eg, b_ms, b_au) =
+        let (b_mg, b_eg, b_mob, b_au) =
             bb_to_posmod(b_bbs[i], i as u8, false, board, w_king_sq, w_king_zone);
         mg_modifier += w_mg + b_mg;
         eg_modifier += w_eg + b_eg;
-        mobility_score += w_ms + b_ms;
+        if (1..=4).contains(&i) {
+            let net_mobility = (w_mob + b_mob) as f32;
+            mg_mobility += net_mobility * ep.mg_mobility_bonus[i - 1];
+            eg_mobility += net_mobility * ep.eg_mobility_bonus[i - 1];
+        }
         w_king_attack_units += w_au;
         b_king_attack_units += b_au;
     }
 
     // king safety: nonlinear scaling of raw attack units, clamped to avoid unbounded swings.
     // mg-only - fades out via phase weighting below.
-    let w_units = w_king_attack_units.min(ep.max_king_attack_units) as f32;
-    let b_units = b_king_attack_units.min(ep.max_king_attack_units) as f32;
+    // weights/clamp are stored x10 for finer tuning steps - divide back to curve units.
+    let w_units = w_king_attack_units.min(ep.max_king_attack_units) as f32 / 10.0;
+    let b_units = b_king_attack_units.min(ep.max_king_attack_units) as f32 / 10.0;
     let w_base_danger = ep.king_attack_linear * w_units + ep.king_attack_quadratic * w_units * w_units;
     let b_base_danger = ep.king_attack_linear * b_units + ep.king_attack_quadratic * b_units * b_units;
     // open/semi-open files amplify existing pressure rather than adding danger on their own.
@@ -230,30 +242,16 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
     mg_modifier -= (wdb_pawns_count - bdb_pawns_count) * ep.mg_doubled_pawn_penalty;
     eg_modifier -= (wdb_pawns_count - bdb_pawns_count) * ep.eg_doubled_pawn_penalty;
 
-    let mg_frac = major_piece_count as f32 / ep.mg_phase_span as f32;
-    let mg_weighted = mg_frac * mg_modifier as f32;
-    let eg_weighted = (1.0 - mg_frac) * eg_modifier as f32;
+    let mg_frac = (phase / phase_max).min(1.0);
+    let mg_weighted = mg_frac * (mg_modifier as f32 + mg_mobility);
+    let eg_weighted = (1.0 - mg_frac) * (eg_modifier as f32 + eg_mobility);
 
     // trade incentive: down material -> keep total material high; up material -> keep it low.
     let trading_incentive =
-        (100.0 * ep.trade_incentive_factor * (net_material as f32 / total_material as f32)).round() as i16;
+        (10.0 * ep.trade_incentive_factor as f32 * (net_material as f32 / total_material as f32)).round() as i16;
 
-    // give a penalty for early queen moves.
-    let mut early_queen_mod: i16 = 0;
-    if board.fullmove_number <= 6 {
-        let w_queen_home: bool = (board.queens & board.white_pieces) & 0x0000000000000008 != 0;
-        let b_queen_home: bool = (board.queens & board.black_pieces) & 0x0800000000000000 != 0;
-        if !w_queen_home {
-            early_queen_mod -= ((7 - board.fullmove_number) as i16) * ep.early_queen_factor;
-        }
-        if !b_queen_home {
-            early_queen_mod += ((7 - board.fullmove_number) as i16) * ep.early_queen_factor;
-        }
-    }
-
-    let mut result = (mg_weighted + eg_weighted).round() as i16 + mobility_score;
+    let mut result = (mg_weighted + eg_weighted).round() as i16;
     result += trading_incentive;
-    result += early_queen_mod;
     if board.side_to_move {
         result += ep.tempo_bonus;
     } else {
@@ -264,7 +262,8 @@ pub fn positional_mods(board: &ChessBoard, net_material: i16, total_material: i1
 }
 
 // piece_type 0-5 = pawn, knight, bishop, rook, queen, king.
-// returns (mg, eg, mobility_score, king_attack_units) for one piece type, one side.
+// returns (mg, eg, mobility, king_attack_units) for one piece type, one side.
+// mobility is the raw attacked-square count (negative for black) - callers apply the mg/eg weights.
 // king_attack_units is raw (unscaled) - callers apply the nonlinear scaling once per side.
 pub fn bb_to_posmod(
     bb: u64,
@@ -277,44 +276,37 @@ pub fn bb_to_posmod(
     let ep = ep();
     let mg_mask: &[i16; 64];
     let eg_mask: &[i16; 64];
-    let mobility_factor: i16;
     match piece_type {
         0 => {
             mg_mask = &ep.mg_pawn_mod;
             eg_mask = &ep.eg_pawn_mod;
-            mobility_factor = 0;
         }
         1 => {
             mg_mask = &ep.mg_knight_mod;
             eg_mask = &ep.eg_knight_mod;
-            mobility_factor = ep.mobility_bonus[0];
         }
         2 => {
             mg_mask = &ep.mg_bishop_mod;
             eg_mask = &ep.eg_bishop_mod;
-            mobility_factor = ep.mobility_bonus[1];
         }
         3 => {
             mg_mask = &ep.mg_rook_mod;
             eg_mask = &ep.eg_rook_mod;
-            mobility_factor = ep.mobility_bonus[2];
         }
         4 => {
             mg_mask = &ep.mg_queen_mod;
             eg_mask = &ep.eg_queen_mod;
-            mobility_factor = ep.mobility_bonus[3];
         }
         5 => {
             mg_mask = &ep.mg_king_mod;
             eg_mask = &ep.eg_king_mod;
-            mobility_factor = 0;
         }
         _ => panic!("unexpected piece type value: {}", piece_type),
     }
 
     let mut mg_modifier: i16 = 0;
     let mut eg_modifier: i16 = 0;
-    let mut mobility_score: i16 = 0;
+    let mut mobility: i16 = 0;
     let mut king_attack_units: i16 = 0;
     let mut mbb: u64 = bb;
     let occupancy = board.white_pieces | board.black_pieces;
@@ -330,7 +322,7 @@ pub fn bb_to_posmod(
             mbb &= mbb - 1;
             mg_modifier += mg_mask[i];
             eg_modifier += eg_mask[i];
-            if mobility_factor != 0 {
+            if (1..=4).contains(&piece_type) {
                 let attacks: u64 = match piece_type {
                     1 => knight_attacks(1 << i, board.white_pieces),
                     2 => get_bishop_attacks(i as u8, board.white_pieces, occupancy),
@@ -338,7 +330,7 @@ pub fn bb_to_posmod(
                     4 => get_queen_attacks(i as u8, board.white_pieces, occupancy),
                     _ => 0,
                 };
-                mobility_score += attacks.count_ones() as i16 * mobility_factor;
+                mobility += attacks.count_ones() as i16;
                 king_attack_units += (attacks & enemy_king_zone).count_ones() as i16
                     * ep.king_attack_weight[piece_type as usize];
             }
@@ -382,7 +374,7 @@ pub fn bb_to_posmod(
             mbb &= mbb - 1;
             mg_modifier -= mg_mask[63 - i];
             eg_modifier -= eg_mask[63 - i];
-            if mobility_factor != 0 {
+            if (1..=4).contains(&piece_type) {
                 let attacks: u64 = match piece_type {
                     1 => knight_attacks(1 << i, board.black_pieces),
                     2 => get_bishop_attacks(i as u8, board.black_pieces, occupancy),
@@ -390,7 +382,7 @@ pub fn bb_to_posmod(
                     4 => get_queen_attacks(i as u8, board.black_pieces, occupancy),
                     _ => 0,
                 };
-                mobility_score -= attacks.count_ones() as i16 * mobility_factor;
+                mobility -= attacks.count_ones() as i16;
                 king_attack_units += (attacks & enemy_king_zone).count_ones() as i16
                     * ep.king_attack_weight[piece_type as usize];
             }
@@ -424,7 +416,7 @@ pub fn bb_to_posmod(
         }
     }
 
-    (mg_modifier, eg_modifier, mobility_score, king_attack_units)
+    (mg_modifier, eg_modifier, mobility, king_attack_units)
 }
 
 // returns score from the perspective of the side currently to move (positive = good for them).

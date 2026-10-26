@@ -23,8 +23,8 @@ def sigmoid(col: pl.Expr) -> pl.Expr:
 # Keeps the deepest eval per position, oversamples, then filters to quiet, usable positions
 # (not in check, no captures available, no chess960 castling rights).
 
-DESIRED_SAMPLE_SIZE = 200_000
-QUIET_POSITION_RATE = 0.16
+DESIRED_SAMPLE_SIZE = 1_000_000
+QUIET_POSITION_RATE = 0.15
 OVERSAMPLE = round(DESIRED_SAMPLE_SIZE / QUIET_POSITION_RATE)
 def import_positions_dataset() -> pl.DataFrame:
     shard_id = f'{random.randint(0, 19):04d}'

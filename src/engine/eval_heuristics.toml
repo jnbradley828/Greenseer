@@ -9,17 +9,16 @@ step = 10
 min = 50
 max = 1200
 
-[mg_phase_span]
-value = 6176
-step = 200
-min = 3000
-max = 9000
-
-[early_queen_factor]
-value = -2
-step = 2
+[phase_weights]
+value = [
+    100,
+    100,
+    200,
+    400,
+]
+step = 10
 min = 0
-max = 40
+max = 1000
 
 [open_file_rook]
 value = 76
@@ -40,10 +39,10 @@ min = 0
 max = 60
 
 [trade_incentive_factor]
-value = 15.0
-step = 1.0
-min = 0.0
-max = 50.0
+value = 150
+step = 10
+min = 0
+max = 500
 
 [mg_bishop_pair_bonus]
 value = 18
@@ -57,12 +56,23 @@ step = 5
 min = 0
 max = 100
 
-[mobility_bonus]
+[mg_mobility_bonus]
 value = [
-    1,
-    3,
-    1,
-    1,
+    1.0,
+    3.0,
+    1.0,
+    1.0,
+]
+step = 1
+min = 0
+max = 15
+
+[eg_mobility_bonus]
+value = [
+    1.0,
+    3.0,
+    1.0,
+    1.0,
 ]
 step = 1
 min = 0
@@ -117,14 +127,14 @@ max = 50
 [king_attack_weight]
 value = [
     0,
-    7,
-    10,
-    5,
-    8,
+    70,
+    100,
+    50,
+    80,
 ]
-step = 1
+step = 10
 min = 0
-max = 20
+max = 200
 
 [king_attack_linear]
 value = 0.32
@@ -139,10 +149,10 @@ min = 0
 max = 1
 
 [max_king_attack_units]
-value = 65
-step = 5
-min = 20
-max = 150
+value = 650
+step = 50
+min = 200
+max = 1500
 
 [king_open_file_mult]
 value = -0.030000000000000006

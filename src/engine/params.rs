@@ -36,16 +36,16 @@ pub const PAWN_VALUE: i16 = 100;
 #[derive(Deserialize, Debug)]
 pub struct EvalParams {
     pub piece_values: [i16; 4], // [n, b, r, q] - pawn is PAWN_VALUE
-    pub mg_phase_span: i16,     // non-pawn material span for mg/eg phase blend
+    pub phase_weights: [i16; 4], // [n, b, r, q] phase contribution per piece - starting position = full mg
 
-    pub early_queen_factor: i16,
     pub open_file_rook: i16,
     pub semiopen_file_rook: i16,
     pub tempo_bonus: i16,
-    pub trade_incentive_factor: f32, // scales net/total material ratio: trade down when ahead, keep material when behind
+    pub trade_incentive_factor: i16, // scales net/total material ratio: trade down when ahead, keep material when behind
     pub mg_bishop_pair_bonus: i16,
     pub eg_bishop_pair_bonus: i16,
-    pub mobility_bonus: [i16; 4], // knight, bishop, rook, queen
+    pub mg_mobility_bonus: [f32; 4], // knight, bishop, rook, queen - per attacked square
+    pub eg_mobility_bonus: [f32; 4],
     pub mg_doubled_pawn_penalty: i16,
     pub eg_doubled_pawn_penalty: i16,
     pub mg_isolated_pawn_penalty: i16,
