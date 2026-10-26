@@ -38,8 +38,10 @@ pub struct EvalParams {
     pub piece_values: [i16; 4], // [n, b, r, q] - pawn is PAWN_VALUE
     pub phase_weights: [i16; 4], // [n, b, r, q] phase contribution per piece - starting position = full mg
 
-    pub open_file_rook: i16,
-    pub semiopen_file_rook: i16,
+    pub mg_open_file_rook: i16,
+    pub eg_open_file_rook: i16,
+    pub mg_semiopen_file_rook: i16,
+    pub eg_semiopen_file_rook: i16,
     pub tempo_bonus: i16,
     pub trade_incentive_factor: i16, // scales net/total material ratio: trade down when ahead, keep material when behind
     pub mg_bishop_pair_bonus: i16,

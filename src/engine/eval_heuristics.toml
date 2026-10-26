@@ -20,14 +20,26 @@ step = 10
 min = 0
 max = 1000
 
-[open_file_rook]
+[mg_open_file_rook]
 value = 76
 step = 5
 min = 0
 max = 80
 
-[semiopen_file_rook]
+[eg_open_file_rook]
+value = 0
+step = 5
+min = 0
+max = 80
+
+[mg_semiopen_file_rook]
 value = 43
+step = 5
+min = 0
+max = 80
+
+[eg_semiopen_file_rook]
+value = 0
 step = 5
 min = 0
 max = 80

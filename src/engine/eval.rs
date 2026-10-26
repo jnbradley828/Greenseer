@@ -353,9 +353,11 @@ pub fn bb_to_posmod(
             if piece_type == 3 {
                 let file_i = (file_value(1u64 << i) - 1) as usize;
                 if FILE_MASK[file_i] & board.pawns == 0 {
-                    mg_modifier += ep.open_file_rook;
+                    mg_modifier += ep.mg_open_file_rook;
+                    eg_modifier += ep.eg_open_file_rook;
                 } else if FILE_MASK[file_i] & (board.pawns & board.white_pieces) == 0 {
-                    mg_modifier += ep.semiopen_file_rook;
+                    mg_modifier += ep.mg_semiopen_file_rook;
+                    eg_modifier += ep.eg_semiopen_file_rook;
                 }
             }
             if piece_type == 5 {
@@ -405,9 +407,11 @@ pub fn bb_to_posmod(
             if piece_type == 3 {
                 let file_i = (file_value(1u64 << i) - 1) as usize;
                 if FILE_MASK[file_i] & board.pawns == 0 {
-                    mg_modifier -= ep.open_file_rook;
+                    mg_modifier -= ep.mg_open_file_rook;
+                    eg_modifier -= ep.eg_open_file_rook;
                 } else if FILE_MASK[file_i] & (board.pawns & board.black_pieces) == 0 {
-                    mg_modifier -= ep.semiopen_file_rook;
+                    mg_modifier -= ep.mg_semiopen_file_rook;
+                    eg_modifier -= ep.eg_semiopen_file_rook;
                 }
             }
             if piece_type == 5 {
