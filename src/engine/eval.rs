@@ -274,12 +274,15 @@ pub fn bb_to_posmod(
     enemy_king_zone: u64,
 ) -> (i16, i16, i16, i16) {
     let ep = ep();
-    let mg_mask: &[i16; 64];
-    let eg_mask: &[i16; 64];
+    let mg_mask: &[i16];
+    let eg_mask: &[i16];
+    // pawn tables skip rank 1 (see params.rs), so their squares are shifted down by 8.
+    let mut pst_offset: usize = 0;
     match piece_type {
         0 => {
             mg_mask = &ep.mg_pawn_mod;
             eg_mask = &ep.eg_pawn_mod;
+            pst_offset = 8;
         }
         1 => {
             mg_mask = &ep.mg_knight_mod;
@@ -320,8 +323,8 @@ pub fn bb_to_posmod(
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
-            mg_modifier += mg_mask[i];
-            eg_modifier += eg_mask[i];
+            mg_modifier += mg_mask[i - pst_offset];
+            eg_modifier += eg_mask[i - pst_offset];
             if (1..=4).contains(&piece_type) {
                 let attacks: u64 = match piece_type {
                     1 => knight_attacks(1 << i, board.white_pieces),
@@ -374,8 +377,8 @@ pub fn bb_to_posmod(
         while mbb != 0 {
             let i = mbb.trailing_zeros() as usize;
             mbb &= mbb - 1;
-            mg_modifier -= mg_mask[63 - i];
-            eg_modifier -= eg_mask[63 - i];
+            mg_modifier -= mg_mask[63 - i - pst_offset];
+            eg_modifier -= eg_mask[63 - i - pst_offset];
             if (1..=4).contains(&piece_type) {
                 let attacks: u64 = match piece_type {
                     1 => knight_attacks(1 << i, board.black_pieces),

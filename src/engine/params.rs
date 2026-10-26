@@ -66,9 +66,10 @@ pub struct EvalParams {
     pub mg_passed_pawn_bonus: [i16; 5], // ranks 2-6 (rank 7 in mg_pawn_mod)
     pub eg_passed_pawn_bonus: [i16; 5],
 
-    // piece-square tables
+    // piece-square tables. pawn tables hold ranks 2-7 only (pawns never stand on ranks 1/8) -
+    // index with square - 8.
     #[serde(with = "BigArray")]
-    pub mg_pawn_mod: [i16; 64],
+    pub mg_pawn_mod: [i16; 48],
     #[serde(with = "BigArray")]
     pub mg_knight_mod: [i16; 64],
     #[serde(with = "BigArray")]
@@ -80,7 +81,7 @@ pub struct EvalParams {
     #[serde(with = "BigArray")]
     pub mg_king_mod: [i16; 64],
     #[serde(with = "BigArray")]
-    pub eg_pawn_mod: [i16; 64],
+    pub eg_pawn_mod: [i16; 48],
     #[serde(with = "BigArray")]
     pub eg_knight_mod: [i16; 64],
     #[serde(with = "BigArray")]
