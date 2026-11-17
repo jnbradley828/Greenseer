@@ -18,51 +18,85 @@ The bot runs 24/7 on a self-managed [DigitalOcean](https://www.digitalocean.com/
 
 ## How It Works
 
-### Search: Minimax with Alpha-Beta Pruning
-Greenseer uses **minimax** to explore the game tree, maximizing the engine's score and minimizing the opponent's at alternating depths. **Alpha-beta pruning** cuts branches that can't affect the final result, dramatically reducing the number of nodes evaluated.
+### Overview
+
+```mermaid
+flowchart TD
+    GUI["GUI / lichess-bot"] -->|"go"| UCI["UCI loop"]
+    UCI --> TM["Time management"]
+    TM --> SMP["Lazy SMP threads<br/>(shared transposition table)"]
+    SMP --> ID["Iterative deepening<br/>depth 1, 2, 3, ..."]
+    ID --> NM["Negamax search"]
+    NM -->|"best move so far"| ID
+    ID -->|"info lines"| GUI
+    UCI -.->|"stop / time up"| ID
+    ID -->|"deepest result"| OUT["bestmove"]
+    OUT --> GUI
+```
+
+**Each search node:**
+
+```mermaid
+flowchart TD
+    START(["Node"]) --> TT{"Game over or<br/>TT cutoff?"}
+    TT -->|"yes"| RET["Return score"]
+    TT -->|"no"| LEAF{"Depth limit?"}
+    LEAF -->|"yes"| QS["Quiescence search<br/>(or check extension)"]
+    QS --> EVAL["Static evaluation"]
+    EVAL --> RET
+    LEAF -->|"no"| PRUNE{"RFP / NMP<br/>prune?"}
+    PRUNE -->|"yes"| RET
+    PRUNE -->|"no"| ORD["Order moves"]
+    ORD --> PVS["Search each move with PVS"]
+    PVS -->|"beta cutoff"| KILL["Store killer"]
+    KILL --> STORE["Store in TT"]
+    PVS -->|"all moves searched"| STORE
+    STORE --> RET
+```
+
+### Search
+Greenseer runs an **alpha-beta** search in **negamax** form: each node scores the position for the side to move, and a child's score is negated on the way back up.
 
 ### Iterative Deepening
-Rather than searching directly to a fixed depth, Greenseer uses **iterative deepening** — completing full searches at depth 1, 2, 3, ... up to the target depth. The best move found at each depth is used to **reorder moves** at the next iteration, placing the most promising candidate first. The best move is also **published incrementally** as each root move completes, so an interrupted search (via `stop` or time running out mid-depth) always returns a valid, up-to-date answer rather than nothing.
+The engine searches to depth 1, 2, 3, ... until it's stopped, runs out of time, reaches the depth limit, or proves a mate. Each iteration searches the previous best move first. The best move is updated after every root move, so an interrupted search still returns a valid answer.
 
 ### Move Ordering
-Legal moves at each node are ordered to maximize alpha-beta cutoffs: the transposition table's stored best move first, then winning or even captures (ranked by static exchange evaluation), then **killer moves** (quiet moves that caused a beta cutoff at the same ply in a sibling node), then other quiet moves, and finally losing captures.
+Moves are ordered to produce early cutoffs: the transposition table move, then winning or even captures (ranked by SEE), then **killer moves** (quiet moves that recently caused a cutoff at the same ply), then other quiet moves, then losing captures.
 
 ### Static Exchange Evaluation (SEE)
-SEE resolves the full sequence of captures and recaptures on a square to estimate whether a capture actually wins material. It's used to split captures into good and bad buckets for move ordering, and to skip losing captures entirely in quiescence search.
+SEE plays out the full capture/recapture sequence on a square to judge whether a capture wins material. It sorts captures for move ordering and filters out losing captures in quiescence search.
 
 ### Principal Variation Search (PVS)
-Move ordering means the first move searched at each node is usually the best one. Greenseer exploits this with **PVS**: after searching the first move with a full alpha-beta window, every subsequent move is first probed with a cheap **null window** (`[alpha, alpha+1]`) just to test whether it can beat alpha at all. Most of the time it can't, and the probe alone is enough to prove the move is worse — no full-width search needed. Only if a probe unexpectedly fails high is that move re-searched with the full window to get its real score.
+The first move at each node is searched with the full window. Every later move gets a cheap **null-window** probe to check whether it can beat the current best; only moves that pass are re-searched with the full window.
 
 ### Search Pruning
-Beyond alpha-beta, Greenseer prunes with:
-- **Reverse futility pruning (RFP)** — at shallow depths, if the static evaluation already exceeds beta by a safe margin, the node is cut without searching further.
-- **Null move pruning (NMP)** — if skipping a move entirely ("passing") still produces a position good enough to fail high after a reduced-depth search, the real subtree is pruned, since an actual move should only do better.
+- **Reverse futility pruning (RFP)** — at shallow depths, cut the node if the static eval already beats beta by a margin.
+- **Null move pruning (NMP)** — if passing the turn still fails high in a reduced-depth search, cut the node. Disabled in check and in pawn-only positions, where zugzwang makes it unsafe.
 
 ### Quiescence Search
-To avoid evaluating positions mid-capture (the "horizon effect"), Greenseer extends the search at leaf nodes with a **quiescence search** — continuing to explore non-losing capture sequences until a quiet position is reached before applying the evaluation function. This prevents the engine from making short-sighted decisions based on incomplete tactical sequences.
+At the depth limit, the search keeps resolving non-losing captures until the position is quiet, so it never evaluates mid-exchange. The static eval serves as a "stand pat" floor, since the side to move can decline to capture. If the side to move is in check, the search extends one ply instead.
 
 ### Transposition Table
-Greenseer uses a **transposition table** with 64-bit **Zobrist hashing** (eliminating key collisions) to cache previously evaluated positions. Since the same position can be reached via different move orders, the table allows the engine to skip redundant work and retrieve scores for positions it has already analyzed. Entries are tagged with an **age**, so stale results from earlier in the game can be preferentially overwritten.
+A **Zobrist-hashed** table caches each searched position's score, depth, bound type, and best move, so positions reached by different move orders aren't searched twice. Full keys are stored to avoid false matches, and entries are **aged** so results from earlier in the game get replaced first.
 
 ### Evaluation
-The position evaluator combines **material balance** with **piece-square tables** — per-piece bonus/penalty grids that reward good squares (e.g. centralized knights, advanced passed pawns) and penalize poor ones. Separate middlegame and endgame weights blend based on remaining material. On top of that, the evaluator scores:
-- **King safety** — attacker-weighted pressure on the king zone, pawn shield quality, and open/semi-open file danger near the king
-- **Pawn structure** — passed, isolated, backward, and doubled pawn terms
-- **Mobility** — legal move count per piece type
-- **Bishop pair, rook on open/semi-open file, and tempo bonuses**
+Material plus **piece-square tables**, with separate middlegame and endgame weights blended by game phase. Additional terms:
+- **King safety** — pressure on the king zone, pawn shield, open files near the king
+- **Pawn structure** — passed, isolated, backward, and doubled pawns
+- **Mobility** — squares attacked per piece
+- **Bishop pair, rooks on open/semi-open files, tempo**
+- **Trade incentive** — trade down when ahead, keep material when behind
 
-Terminal states (checkmate, draw) are handled explicitly. The addition of piece-square tables alone measured a **+478 Elo gain** in self-play benchmarking.
-
-All evaluation weights are expressed in centipawns relative to a fixed pawn value of 100, and live in `src/engine/eval_heuristics.toml` (search constants live separately in `search_heuristics.toml`). A build script bakes both files into the binary as compile-time constants, so tunable parameters cost nothing at runtime.
+All weights are in centipawns (pawn = 100) and live in `src/engine/eval_heuristics.toml`; search constants live in `search_heuristics.toml`. A build script compiles both into the binary as constants.
 
 ### Texel Tuning
-Evaluation weights are fit automatically with **Texel's tuning method** (`python/tuning/texel.py`). The tuner samples quiet positions (not in check, no captures available) from the [Lichess position evaluations dataset](https://huggingface.co/datasets/Lichess/chess-position-evaluations), maps both Stockfish's evaluation and Greenseer's static evaluation through a sigmoid, and minimizes the mean squared error between them by coordinate descent — nudging each parameter up or down and keeping any change that lowers the loss. A separate `tuning`-feature build of the engine loads parameters from disk at startup, so each candidate parameter set can be evaluated without recompiling.
+Evaluation weights are tuned with **Texel's method** (`python/tuning/texel.py`): sample quiet positions from the [Lichess position evaluations dataset](https://huggingface.co/datasets/Lichess/chess-position-evaluations), then use coordinate descent to minimize the error between Greenseer's eval and Stockfish's, both mapped through a sigmoid.
 
-### UCI Compatibility
-The engine speaks UCI, including support for `go depth`, `go movetime`, full time control (`wtime`/`btime`/`winc`/`binc`), and **pondering** (`go ponder` / `ponderhit`). The `Hash`, `Threads`, and `Ponder` options are supported; multiple threads run a **Lazy SMP** search sharing one transposition table. A shared atomic flag allows the search to abort mid-tree on a `stop` command and return the best move found so far. Each search reports standard `info` lines with `depth`, `score cp`, `nodes`, `nps`, and `time`. Time management is tuned down to hyperbullet time controls, and no longer artificially caps the first few moves of a game, since [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot) is configured to play from an opening book.
+### UCI
+Supports `go depth`, `go movetime`, `wtime`/`btime`/`winc`/`binc`, and pondering (`go ponder` / `ponderhit`). Options: `Hash`, `Threads` (Lazy SMP), and `Ponder`.
 
 ### Benchmarking
-Engine strength is measured using [fastchess](https://github.com/Disservin/fastchess) to run automated matches between the current `dev` build and a fresh clone+build of `main`. An interactive Python tool (`python/benches/fastchess_sprt.py`) drives the whole process — building both binaries, then configuring and queuing one or more tournaments (opening book, time control or a fixed depth instead, concurrency, rounds) under **SPRT** (Sequential Probability Ratio Test) with elo0=0, elo1=10, alpha=0.05, beta=0.05. Rather than a fixed game count, each test runs until it reaches statistical certainty that the new version is better or no better than the baseline. A live terminal dashboard tracks the running SPRT statistics and parses the match PGN as it's written, reporting average nodes-per-second and search depth for `dev` vs. `main` in real time, so raw Elo results can be cross-checked against actual search performance as the match runs. Long-running tournaments can be paused, stopped, or resumed from a saved config without losing accumulated SPRT statistics.
+Changes are tested with [fastchess](https://github.com/Disservin/fastchess), playing the `dev` build against `main` under **SPRT** until the result is statistically significant. `python/benches/fastchess_sprt.py` builds both engines, queues tournaments, and shows a live dashboard of SPRT stats alongside NPS and search depth for each build.
 
 ---
 
